@@ -1,0 +1,13 @@
+bin/
+obj/
+artifacts/
+TestResults/
+.DS_Store
+
+.codegraph
+.codex
+.omo
+AGENTS.md
+DESIGN.md
+PLAN.md
+QA.md

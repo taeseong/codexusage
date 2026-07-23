@@ -1,0 +1,80 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:CodexUsage.Desktop.Controls"
+        xmlns:vm="using:CodexUsage.Desktop.ViewModels"
+        x:Class="CodexUsage.Desktop.Views.UsageWindow"
+        x:DataType="vm:UsageViewModel"
+        Title="Codex Usage"
+        Width="420"
+        Height="540"
+        MinWidth="380"
+        MinHeight="520"
+        Background="{DynamicResource UsageSurfaceAppBrush}"
+        WindowStartupLocation="CenterScreen">
+  <ScrollViewer>
+    <StackPanel Margin="{StaticResource UsagePaddingPage}"
+                Spacing="{StaticResource UsageSpace4}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource UsageSpace3}">
+        <StackPanel Spacing="{StaticResource UsageSpace1}">
+          <TextBlock Classes="usage-title" Text="Codex Usage" />
+          <TextBlock Classes="usage-caption" Text="LIVE · Codex App Server" />
+        </StackPanel>
+        <Button Grid.Column="1"
+                Classes="usage-action"
+                MinWidth="88"
+                Command="{Binding RefreshCommand}"
+                Content="Refresh" />
+      </Grid>
+
+      <Grid x:Name="LoadingSlot">
+        <ProgressBar Classes="usage-window-loading"
+                     Classes.busy="{Binding IsBusy}"
+                     IsIndeterminate="True"
+                     Height="{StaticResource UsageProgressSlim}" />
+      </Grid>
+
+      <controls:UsageLimitCard Title="{Binding ShortTerm.Title}"
+                               AvailabilityText="{Binding ShortTerm.AvailabilityText}"
+                               UsedText="{Binding ShortTerm.UsedText}"
+                               RemainingText="{Binding ShortTerm.RemainingText}"
+                               ResetText="{Binding ShortTerm.ResetText}"
+                               UsedPercent="{Binding ShortTerm.UsedPercent}"
+                               ShowProgress="{Binding ShortTerm.ShowProgress}"
+                               IsLoading="{Binding IsBusy}" />
+
+      <controls:UsageLimitCard Title="{Binding Weekly.Title}"
+                               AvailabilityText="{Binding Weekly.AvailabilityText}"
+                               UsedText="{Binding Weekly.UsedText}"
+                               RemainingText="{Binding Weekly.RemainingText}"
+                               ResetText="{Binding Weekly.ResetText}"
+                               UsedPercent="{Binding Weekly.UsedPercent}"
+                               ShowProgress="{Binding Weekly.ShowProgress}"
+                               IsLoading="{Binding IsBusy}" />
+
+      <Border Classes="usage-card usage-notice"
+              Classes.warning="{Binding IsWarningNotice}"
+              IsVisible="{Binding HasNotice}">
+        <StackPanel Spacing="{StaticResource UsageSpace2}">
+          <TextBlock Classes="usage-section usage-notice-title"
+                     Classes.warning="{Binding IsWarningNotice}"
+                     Text="{Binding StatusTitle}" />
+          <TextBlock Classes="usage-body"
+                     TextWrapping="Wrap"
+                     Text="{Binding StatusDetail}" />
+        </StackPanel>
+      </Border>
+
+      <Border BorderBrush="{DynamicResource UsageBorderBrush}"
+              BorderThickness="0,1,0,0"
+              Padding="0,12,0,0">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource UsageSpace3}">
+          <TextBlock Classes="usage-caption" Text="{Binding AccountPlanText}" />
+          <TextBlock Grid.Column="1"
+                     Classes="usage-caption"
+                     HorizontalAlignment="Right"
+                     Text="{Binding LastUpdatedText}" />
+        </Grid>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

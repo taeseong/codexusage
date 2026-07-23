@@ -1,0 +1,131 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <ResourceDictionary>
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="UsageSurfaceAppBrush" Color="#F5F5F7" />
+      <SolidColorBrush x:Key="UsageSurfaceCardBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="UsageSurfaceSubtleBrush" Color="#F0F0F2" />
+      <SolidColorBrush x:Key="UsageTextPrimaryBrush" Color="#1D1D1F" />
+      <SolidColorBrush x:Key="UsageTextSecondaryBrush" Color="#5F5F64" />
+      <SolidColorBrush x:Key="UsageBorderBrush" Color="#D2D2D7" />
+      <SolidColorBrush x:Key="UsageAccentBrush" Color="#006EDB" />
+      <SolidColorBrush x:Key="UsageSuccessBrush" Color="#147D3F" />
+      <SolidColorBrush x:Key="UsageWarningBrush" Color="#9A6200" />
+      <SolidColorBrush x:Key="UsageErrorBrush" Color="#C9342E" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="UsageSurfaceAppBrush" Color="#171719" />
+      <SolidColorBrush x:Key="UsageSurfaceCardBrush" Color="#242426" />
+      <SolidColorBrush x:Key="UsageSurfaceSubtleBrush" Color="#303033" />
+      <SolidColorBrush x:Key="UsageTextPrimaryBrush" Color="#F5F5F7" />
+      <SolidColorBrush x:Key="UsageTextSecondaryBrush" Color="#B6B6BC" />
+      <SolidColorBrush x:Key="UsageBorderBrush" Color="#444448" />
+      <SolidColorBrush x:Key="UsageAccentBrush" Color="#0071E3" />
+      <SolidColorBrush x:Key="UsageSuccessBrush" Color="#46C979" />
+      <SolidColorBrush x:Key="UsageWarningBrush" Color="#F0B84B" />
+      <SolidColorBrush x:Key="UsageErrorBrush" Color="#FF6B63" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <x:Double x:Key="UsageSpace1">4</x:Double>
+  <x:Double x:Key="UsageSpace2">8</x:Double>
+  <x:Double x:Key="UsageSpace3">12</x:Double>
+  <x:Double x:Key="UsageSpace4">16</x:Double>
+  <x:Double x:Key="UsageSpace5">20</x:Double>
+  <x:Double x:Key="UsageSpace6">24</x:Double>
+  <x:Double x:Key="UsageProgressSlim">4</x:Double>
+  <x:Double x:Key="UsageProgressStandard">6</x:Double>
+  <CornerRadius x:Key="UsageRadiusSmall">8</CornerRadius>
+  <CornerRadius x:Key="UsageRadiusMedium">10</CornerRadius>
+  <CornerRadius x:Key="UsageRadiusLarge">14</CornerRadius>
+  <Thickness x:Key="UsagePaddingAction">16,8</Thickness>
+  <Thickness x:Key="UsagePaddingCard">16</Thickness>
+  <Thickness x:Key="UsagePaddingMetric">12</Thickness>
+  <Thickness x:Key="UsagePaddingPage">20</Thickness>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <Style Selector="TextBlock.usage-title">
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-section">
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-metric">
+    <Setter Property="FontSize" Value="28" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-body">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-caption">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextSecondaryBrush}" />
+  </Style>
+  <Style Selector="Border.usage-card">
+    <Setter Property="Background" Value="{DynamicResource UsageSurfaceCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource UsageBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource UsageRadiusLarge}" />
+    <Setter Property="Padding" Value="{StaticResource UsagePaddingCard}" />
+  </Style>
+  <Style Selector="Border.usage-notice">
+    <Setter Property="BorderBrush" Value="{DynamicResource UsageErrorBrush}" />
+  </Style>
+  <Style Selector="Border.usage-notice.warning">
+    <Setter Property="BorderBrush" Value="{DynamicResource UsageWarningBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-notice-title">
+    <Setter Property="Foreground" Value="{DynamicResource UsageErrorBrush}" />
+  </Style>
+  <Style Selector="TextBlock.usage-notice-title.warning">
+    <Setter Property="Foreground" Value="{DynamicResource UsageWarningBrush}" />
+  </Style>
+  <Style Selector="Button.usage-action">
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="{StaticResource UsagePaddingAction}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{StaticResource UsageRadiusSmall}" />
+    <Setter Property="Background" Value="{DynamicResource UsageSurfaceSubtleBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource UsageBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.usage-action:pointerover">
+    <Setter Property="Background" Value="{DynamicResource UsageSurfaceCardBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="Button.usage-action:pressed">
+    <Setter Property="Background" Value="{DynamicResource UsageBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource UsageTextPrimaryBrush}" />
+  </Style>
+  <Style Selector="ProgressBar.usage-window-loading">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="ProgressBar.usage-window-loading.busy">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="ProgressBar.usage-card-progress">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="ProgressBar.usage-card-progress.visible">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="ProgressBar.usage-card-loading">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="ProgressBar.usage-card-loading.busy">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+</Styles>

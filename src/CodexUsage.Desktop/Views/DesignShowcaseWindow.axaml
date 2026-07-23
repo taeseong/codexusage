@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:CodexUsage.Desktop.Controls"
+        x:Class="CodexUsage.Desktop.Views.DesignShowcaseWindow"
+        Title="Codex Usage - Design Preview"
+        Width="420"
+        Height="840"
+        MinWidth="380"
+        MinHeight="620"
+        Background="{DynamicResource UsageSurfaceAppBrush}"
+        WindowStartupLocation="CenterScreen">
+  <ScrollViewer>
+    <StackPanel Margin="{StaticResource UsagePaddingPage}" Spacing="{StaticResource UsageSpace4}">
+      <StackPanel Spacing="{StaticResource UsageSpace1}">
+        <TextBlock Classes="usage-title" Text="Codex Usage" />
+        <TextBlock Classes="usage-caption" Text="DESIGN PREVIEW · MOCK DATA" />
+      </StackPanel>
+
+      <controls:UsageLimitCard Title="Weekly"
+                               AvailabilityText="Available"
+                               UsedText="1%"
+                               RemainingText="99%"
+                               ResetText="in 6d 23h"
+                               UsedPercent="1"
+                               ShowProgress="True" />
+
+      <controls:UsageLimitCard Title="5-hour"
+                               AvailabilityText="Not reported"
+                               UsedText="-"
+                               RemainingText="-"
+                               ResetText="Not available" />
+
+      <controls:UsageLimitCard Title="Refreshing"
+                               AvailabilityText="Connecting"
+                               ResetText="Please wait"
+                               IsLoading="True" />
+
+      <Border Classes="usage-card" BorderBrush="{DynamicResource UsageErrorBrush}">
+        <StackPanel Spacing="{StaticResource UsageSpace2}">
+          <TextBlock Classes="usage-section"
+                     Foreground="{DynamicResource UsageErrorBrush}"
+                     Text="Sign in to Codex" />
+          <TextBlock Classes="usage-body"
+                     TextWrapping="Wrap"
+                     Text="Sign in to Codex, then refresh. Existing usage is never shown as 0%." />
+        </StackPanel>
+      </Border>
+
+      <Button Classes="usage-action"
+              HorizontalAlignment="Stretch"
+              Content="Refresh" />
+      <Button Classes="usage-action"
+              HorizontalAlignment="Stretch"
+              IsEnabled="False"
+              Content="Updating" />
+    </StackPanel>
+  </ScrollViewer>
+</Window>

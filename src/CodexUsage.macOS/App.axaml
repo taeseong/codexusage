@@ -1,0 +1,10 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CodexUsage.macOS.App"
+             Name="Codex Usage"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://CodexUsage.Desktop/Themes/DesignTokens.axaml" />
+  </Application.Styles>
+</Application>

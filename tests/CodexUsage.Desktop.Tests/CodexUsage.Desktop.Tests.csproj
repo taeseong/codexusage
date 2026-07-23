@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/CodexUsage.Desktop/CodexUsage.Desktop.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../src/CodexUsage.Desktop/Themes/DesignTokens.axaml"
+             Link="TestAssets/DesignTokens.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Desktop/Views/UsageWindow.axaml"
+             Link="TestAssets/UsageWindow.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Desktop/Controls/UsageLimitCard.axaml"
+             Link="TestAssets/UsageLimitCard.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.macOS/MenuBar/MacOSStatusItem.cs"
+             Link="TestAssets/MacOSStatusItem.cs"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/package-macos.sh"
+             Link="TestAssets/package-macos.sh"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

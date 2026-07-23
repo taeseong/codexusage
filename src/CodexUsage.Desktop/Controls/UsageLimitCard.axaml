@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="CodexUsage.Desktop.Controls.UsageLimitCard"
+             x:Name="Root">
+  <Border Classes="usage-card">
+    <StackPanel Spacing="{StaticResource UsageSpace3}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="usage-section" Text="{Binding Title, ElementName=Root}" />
+        <TextBlock Grid.Column="1"
+                   Classes="usage-caption"
+                   Text="{Binding AvailabilityText, ElementName=Root}" />
+      </Grid>
+
+      <Grid x:Name="Metrics"
+            ColumnDefinitions="*,*"
+            ColumnSpacing="{StaticResource UsageSpace2}">
+        <Border Background="{DynamicResource UsageSurfaceSubtleBrush}"
+                CornerRadius="{StaticResource UsageRadiusMedium}"
+                Padding="{StaticResource UsagePaddingMetric}">
+          <StackPanel Spacing="{StaticResource UsageSpace1}">
+            <TextBlock Classes="usage-caption" Text="Used" />
+            <TextBlock Classes="usage-metric"
+                       Text="{Binding UsedText, ElementName=Root}" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="1"
+                Background="{DynamicResource UsageSurfaceSubtleBrush}"
+                CornerRadius="{StaticResource UsageRadiusMedium}"
+                Padding="{StaticResource UsagePaddingMetric}">
+          <StackPanel Spacing="{StaticResource UsageSpace1}">
+            <TextBlock Classes="usage-caption" Text="Remaining" />
+            <TextBlock Classes="usage-metric"
+                       Text="{Binding RemainingText, ElementName=Root}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource UsageSpace2}">
+        <TextBlock Classes="usage-caption" Text="Reset" />
+        <TextBlock Grid.Column="1"
+                   Classes="usage-body"
+                   HorizontalAlignment="Right"
+                   Text="{Binding ResetText, ElementName=Root}" />
+      </Grid>
+
+      <Grid>
+        <ProgressBar Classes="usage-card-progress"
+                     Classes.visible="{Binding ShowProgress, ElementName=Root}"
+                     Minimum="0"
+                     Maximum="100"
+                     Value="{Binding UsedPercent, ElementName=Root}"
+                     Height="{StaticResource UsageProgressStandard}" />
+        <ProgressBar Classes="usage-card-loading"
+                     Classes.busy="{Binding IsLoading, ElementName=Root}"
+                     IsIndeterminate="True"
+                     Height="{StaticResource UsageProgressStandard}" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>
