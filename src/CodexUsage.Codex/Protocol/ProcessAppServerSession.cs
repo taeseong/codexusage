@@ -12,13 +12,27 @@ internal sealed class ProcessAppServerSession : IAppServerSession
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = codexExecutablePath,
             UseShellExecute = false,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
+
+        if (OperatingSystem.IsWindows() && IsCommandScript(codexExecutablePath))
+        {
+            // The npm-installed CLI on Windows is a .cmd shim. Start it through cmd.exe
+            // directly, so PowerShell execution policy never affects the app server.
+            startInfo.FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe";
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/c");
+            startInfo.ArgumentList.Add(codexExecutablePath);
+        }
+        else
+        {
+            startInfo.FileName = codexExecutablePath;
+        }
+
         startInfo.ArgumentList.Add("app-server");
         startInfo.ArgumentList.Add("--stdio");
 
@@ -83,6 +97,10 @@ internal sealed class ProcessAppServerSession : IAppServerSession
         {
         }
     }
+
+    private static bool IsCommandScript(string path) =>
+        path.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith(".bat", StringComparison.OrdinalIgnoreCase);
 }
 
 internal sealed class ProcessAppServerSessionFactory : IAppServerSessionFactory

@@ -22,6 +22,7 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
     private bool _hasNotice;
     private bool _isShowingStaleData;
     private bool _isWarningNotice;
+    private bool _isCodexNotInstalled;
     private bool _isBusy;
     private bool _hasRefreshed;
     private int _disposeStarted;
@@ -83,6 +84,12 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
     {
         get => _isWarningNotice;
         private set => SetProperty(ref _isWarningNotice, value);
+    }
+
+    public bool IsCodexNotInstalled
+    {
+        get => _isCodexNotInstalled;
+        private set => SetProperty(ref _isCodexNotInstalled, value);
     }
 
     public bool IsBusy
@@ -160,6 +167,7 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
                 ApplyFailure(result.Status);
             }
 
+            IsCodexNotInstalled = result.Status is CodexUsageStatus.CodexNotInstalled;
             HasRefreshed = true;
         }
         catch (OperationCanceledException) when (_stopping.IsCancellationRequested)

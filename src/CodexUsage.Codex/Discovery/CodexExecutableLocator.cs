@@ -24,18 +24,25 @@ public sealed class CodexExecutableLocator
         _fileExists = fileExists;
     }
 
-    public string? Find()
+    public string? Find() => FindAll().FirstOrDefault();
+
+    internal IReadOnlyList<string> FindAll()
     {
-        var executableName = OperatingSystem.IsWindows() ? "codex.exe" : "codex";
+        var executableNames = GetExecutableNames();
+        var candidates = new List<string>();
         var path = _pathProvider();
         if (!string.IsNullOrWhiteSpace(path))
         {
-            foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            var directories = path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var executableName in executableNames)
             {
-                var resolved = Resolve(Path.Combine(directory, executableName));
-                if (resolved is not null)
+                foreach (var directory in directories)
                 {
-                    return resolved;
+                    var resolved = Resolve(Path.Combine(directory, executableName));
+                    if (resolved is not null)
+                    {
+                        candidates.Add(resolved);
+                    }
                 }
             }
         }
@@ -45,12 +52,19 @@ public sealed class CodexExecutableLocator
             var resolved = Resolve(knownPath);
             if (resolved is not null)
             {
-                return resolved;
+                candidates.Add(resolved);
             }
         }
 
-        return null;
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    private static IReadOnlyList<string> GetExecutableNames() =>
+        OperatingSystem.IsWindows()
+            // npm's Windows shim is codex.cmd. Never select codex.ps1: it is subject to
+            // the user's PowerShell execution policy and is not needed by the app server.
+            ? ["codex.exe", "codex.cmd", "codex.bat"]
+            : ["codex"];
 
     private string? Resolve(string candidate)
     {

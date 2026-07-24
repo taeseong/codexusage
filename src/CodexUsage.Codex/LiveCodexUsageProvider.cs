@@ -40,58 +40,68 @@ public sealed class LiveCodexUsageProvider : ICodexUsageProvider
 
     public async Task<CodexUsageResult> GetUsageAsync(CancellationToken cancellationToken = default)
     {
-        var executablePath = _locator.Find();
-        if (executablePath is null)
+        var executablePaths = _locator.FindAll();
+        if (executablePaths.Count == 0)
         {
             return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable was not found on PATH.");
         }
 
-        try
+        foreach (var executablePath in executablePaths)
         {
-            await using var client = new AppServerClient(executablePath, _sessionFactory, _requestTimeout);
-            await client.InitializeAsync(cancellationToken).ConfigureAwait(false);
-            var account = await client.ReadAccountAsync(cancellationToken).ConfigureAwait(false);
-            if (account.RequiresOpenaiAuth && account.Account is null)
+            try
             {
-                return Failure(CodexUsageStatus.NotAuthenticated, "Codex login is required.");
-            }
+                await using var client = new AppServerClient(executablePath, _sessionFactory, _requestTimeout);
+                await client.InitializeAsync(cancellationToken).ConfigureAwait(false);
+                var account = await client.ReadAccountAsync(cancellationToken).ConfigureAwait(false);
+                if (account.RequiresOpenaiAuth && account.Account is null)
+                {
+                    return Failure(CodexUsageStatus.NotAuthenticated, "Codex login is required.");
+                }
 
-            var rateLimits = await client.ReadRateLimitsAsync(cancellationToken).ConfigureAwait(false);
-            var snapshot = RateLimitMapper.Map(account, rateLimits, _timeProvider.GetUtcNow());
-            return new CodexUsageResult { Status = CodexUsageStatus.Success, Snapshot = snapshot };
+                var rateLimits = await client.ReadRateLimitsAsync(cancellationToken).ConfigureAwait(false);
+                var snapshot = RateLimitMapper.Map(account, rateLimits, _timeProvider.GetUtcNow());
+                return new CodexUsageResult { Status = CodexUsageStatus.Success, Snapshot = snapshot };
+            }
+            catch (Win32Exception) when (executablePath != executablePaths[^1])
+            {
+                // A Store package can leave an unusable codex.exe on PATH while npm's
+                // codex.cmd works. Try the next discovered local CLI without using PowerShell.
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return Failure(CodexUsageStatus.Cancelled, "Usage lookup was cancelled.");
+            }
+            catch (TimeoutException)
+            {
+                return Failure(CodexUsageStatus.TimedOut, "Codex App Server did not respond before the timeout.");
+            }
+            catch (AppServerResponseFormatException)
+            {
+                return Failure(CodexUsageStatus.ResponseFormatChanged, "Codex App Server returned an unrecognized response shape.");
+            }
+            catch (AppServerMethodNotFoundException)
+            {
+                return Failure(CodexUsageStatus.UsageUnsupported, "The installed Codex version does not support usage lookup.");
+            }
+            catch (AppServerProtocolException)
+            {
+                return Failure(CodexUsageStatus.ProtocolError, "Codex App Server protocol failed.");
+            }
+            catch (AppServerExitedException)
+            {
+                return Failure(CodexUsageStatus.ProtocolError, "Codex App Server exited unexpectedly.");
+            }
+            catch (Win32Exception)
+            {
+                return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
+            }
+            catch (Exception)
+            {
+                return Failure(CodexUsageStatus.UnknownError, "An unexpected local error occurred.");
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return Failure(CodexUsageStatus.Cancelled, "Usage lookup was cancelled.");
-        }
-        catch (TimeoutException)
-        {
-            return Failure(CodexUsageStatus.TimedOut, "Codex App Server did not respond before the timeout.");
-        }
-        catch (AppServerResponseFormatException)
-        {
-            return Failure(CodexUsageStatus.ResponseFormatChanged, "Codex App Server returned an unrecognized response shape.");
-        }
-        catch (AppServerMethodNotFoundException)
-        {
-            return Failure(CodexUsageStatus.UsageUnsupported, "The installed Codex version does not support usage lookup.");
-        }
-        catch (AppServerProtocolException)
-        {
-            return Failure(CodexUsageStatus.ProtocolError, "Codex App Server protocol failed.");
-        }
-        catch (AppServerExitedException)
-        {
-            return Failure(CodexUsageStatus.ProtocolError, "Codex App Server exited unexpectedly.");
-        }
-        catch (Win32Exception)
-        {
-            return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
-        }
-        catch (Exception)
-        {
-            return Failure(CodexUsageStatus.UnknownError, "An unexpected local error occurred.");
-        }
+
+        return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
     }
 
     private static CodexUsageResult Failure(CodexUsageStatus status, string detail) =>

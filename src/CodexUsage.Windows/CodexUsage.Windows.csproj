@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>CodexUsage</AssemblyName>
+    <Version>0.1.0</Version>
+    <RootNamespace>CodexUsage.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\codex-usage.ico</ApplicationIcon>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/codex-usage.ico" />
+    <AvaloniaResource Include="../CodexUsage.macOS/Assets/usage-mark.png"
+                      Link="Assets/usage-mark.png" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CodexUsage.Codex/CodexUsage.Codex.csproj" />
+    <ProjectReference Include="../CodexUsage.Desktop/CodexUsage.Desktop.csproj" />
+  </ItemGroup>
+</Project>

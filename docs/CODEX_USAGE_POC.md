@@ -136,12 +136,34 @@ CodexUsage.Poc
 
 ## Windows 추가 검증
 
-- `codex.exe` PATH 탐색
-- Windows Codex CLI의 App Server method와 schema 동일성
-- ChatGPT 로그인 저장소 재사용 여부
-- 프로세스 종료와 cancellation
-- Unix timestamp의 Windows local time 변환
+2026-07-23 21:50 KST에 Windows 환경에서 기존 PoC를 실행했습니다.
+
+- 운영체제: Windows 10 Home 22H2 x64, build 19045.6466
+- .NET SDK: 10.0.302
+- Codex CLI: 0.145.0-alpha.30
+- 설치 위치: Microsoft Store Codex 앱의 `app/resources/codex.exe`
+- 로그인 상태: `Logged in using ChatGPT`
+- Provider: `LiveCodexUsageProvider`
+- Mock: 사용하지 않음
+
+검증 샌드박스 계정은 WindowsApps 실행 정책 때문에 설치 위치의 실행 파일을 직접 시작할 수 없었습니다. 동일한 설치 파일을 사용자 임시 디렉터리에 복사하고, 자식 프로세스에만 사용자의 기존 `CODEX_HOME`을 지정해 App Server를 실행했습니다. 인증 파일 내용은 읽거나 출력하지 않았습니다. 일반 사용자 컨텍스트에서 패키지 경로를 직접 실행하는 동작은 별도 확인이 필요합니다.
+
+| 항목 | Windows 결과 |
+|---|---|
+| Codex 탐색 | PATH에서 패키지의 `codex.exe` 발견 |
+| App Server 초기화 | 성공 |
+| 로그인 감지 | ChatGPT 로그인 확인 |
+| 단기 한도 | 응답에 없음 |
+| 주간 한도 | 26% used, 74% remaining |
+| 주간 reset | 2026-07-30 11:57:43 KST |
+| account plan | `pro` |
+| rate-limit plan | `prolite`, 별도 보존 |
+| 격리된 미로그인 | `NotAuthenticated` 매핑 확인 |
+| 프로세스 정리 | 앱 종료 후 새 Codex 자식 프로세스 없음 |
+| 공식 Usage 화면 비교 | 인앱 브라우저 미로그인으로 현재 값 비교 미수행 |
+
+Windows에서 동일한 App Server method와 DTO 매핑, Unix timestamp의 KST 변환, 미로그인 상태와 소유 자식 프로세스 정리를 확인했습니다. 공식 Usage 화면과의 현재 값 비교, Windows 11, Windows Terminal과 패키지 경로 직접 실행은 미검증입니다.
 
 ## 다음 단계 판단
 
-App Server 기반 live provider의 기술적 실현 가능성, 공식 Usage 화면 값 일치, 실제 미로그인 상태 매핑을 확인했습니다. 단기 window가 양쪽 모두 없는 것은 현재 계정의 실제 상태로 확인됐고, account plan 불일치는 별도 보존 중입니다. 인증 만료는 안정적인 공개 식별 신호가 없어 추측 매핑을 보류했습니다. 다음 작업은 Windows에서 같은 endpoint를 검증할 수 있는 환경을 확보하거나, 플랫폼 독립적인 Core 캐시·자동 갱신 구현으로 진행하는 것입니다.
+App Server 기반 live provider의 기술적 실현 가능성, macOS 공식 Usage 화면 값 일치, macOS와 Windows의 실제 미로그인 상태 매핑을 확인했습니다. 단기 window가 양쪽 모두 없는 것은 현재 계정의 실제 상태로 확인됐고, account plan 불일치는 별도 보존 중입니다. 인증 만료는 안정적인 공개 식별 신호가 없어 추측 매핑을 보류했습니다. Windows는 live App Server 조회까지 확인했지만 Windows 11과 공식 화면의 현재 값 비교가 남아 있습니다.

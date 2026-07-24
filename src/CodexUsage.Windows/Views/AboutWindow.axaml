@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CodexUsage.Windows.Views.AboutWindow"
+        x:CompileBindings="False"
+        Title="About CodexUsage"
+        Icon="avares://CodexUsage/Assets/codex-usage.ico"
+        Width="320"
+        Height="226"
+        MinWidth="320"
+        MinHeight="226"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource UsageSurfaceAppBrush}"
+        WindowStartupLocation="CenterScreen">
+  <Window.Styles>
+    <Style Selector="Button.github-link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="Foreground" Value="{DynamicResource UsageSuccessBrush}" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </Window.Styles>
+  <Grid Margin="28,24"
+        RowDefinitions="*">
+    <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="10">
+      <Border Width="58"
+              Height="58"
+              HorizontalAlignment="Center"
+              CornerRadius="12"
+              Background="{DynamicResource UsageTextPrimaryBrush}">
+        <TextBlock HorizontalAlignment="Left"
+                   Margin="11,0,0,0"
+                   VerticalAlignment="Center"
+                   FontFamily="Cascadia Mono,Consolas"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource UsageSurfaceAppBrush}"
+                   Text="&gt;_" />
+      </Border>
+      <TextBlock Classes="usage-title"
+                 HorizontalAlignment="Center"
+                 FontSize="19"
+                 Text="CodexUsage" />
+      <TextBlock Classes="usage-caption"
+                 HorizontalAlignment="Center"
+                 Text="{Binding Version, StringFormat=Version {0}}" />
+      <Button Classes="github-link"
+              HorizontalAlignment="Center"
+              Click="OnOpenGitHub"
+              Content="github.com/taeseong/codexusage" />
+    </StackPanel>
+  </Grid>
+</Window>

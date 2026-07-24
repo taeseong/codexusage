@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CodexUsage.Windows.Views.CodexCliInstallWindow"
+        Title="Codex CLI 설치 필요"
+        Icon="avares://CodexUsage/Assets/codex-usage.ico"
+        Width="480"
+        Height="360"
+        MinWidth="440"
+        MinHeight="340"
+        CanResize="False"
+        Background="{DynamicResource UsageSurfaceAppBrush}"
+        WindowStartupLocation="Manual">
+  <Grid Margin="{StaticResource UsagePaddingPage}"
+        RowDefinitions="Auto,Auto,Auto,*,Auto"
+        RowSpacing="{StaticResource UsageSpace4}">
+    <Grid ColumnDefinitions="38,*"
+          ColumnSpacing="{StaticResource UsageSpace3}">
+      <Border Width="38"
+              Height="38"
+              CornerRadius="{StaticResource UsageRadiusSmall}"
+              Background="{DynamicResource UsageTextPrimaryBrush}">
+        <TextBlock HorizontalAlignment="Left"
+                   Margin="7,0,0,0"
+                   VerticalAlignment="Center"
+                   FontFamily="Cascadia Mono,Consolas"
+                   FontSize="15"
+                   FontWeight="Bold"
+                   Foreground="{DynamicResource UsageSurfaceAppBrush}"
+                   Text="&gt;_" />
+      </Border>
+      <StackPanel Grid.Column="1"
+                  Spacing="{StaticResource UsageSpace1}">
+        <TextBlock Classes="usage-title"
+                   FontSize="20"
+                   Text="Codex CLI가 필요합니다" />
+        <TextBlock Classes="usage-caption"
+                   Text="CodexUsage가 이 컴퓨터에서 Codex CLI를 찾지 못했습니다." />
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="1"
+               Classes="usage-body"
+               TextWrapping="Wrap"
+               Text="PowerShell 또는 Windows Terminal에서 다음 공식 명령을 실행하세요." />
+
+    <Border Grid.Row="2"
+            Classes="usage-card"
+            Padding="14,12">
+      <Grid ColumnDefinitions="*,Auto"
+            ColumnSpacing="{StaticResource UsageSpace3}">
+        <TextBlock VerticalAlignment="Center"
+                   FontFamily="Cascadia Mono,Consolas"
+                   FontSize="13"
+                   Text="npm install --global @openai/codex" />
+        <Button Grid.Column="1"
+                Classes="usage-action"
+                MinHeight="36"
+                Padding="12,6"
+                Click="OnCopyInstallCommand"
+                Content="명령 복사" />
+      </Grid>
+    </Border>
+
+    <StackPanel Grid.Row="3"
+                Spacing="{StaticResource UsageSpace2}">
+      <TextBlock Classes="usage-section"
+                 FontSize="15"
+                 Text="설치 후" />
+      <TextBlock Classes="usage-body"
+                 TextWrapping="Wrap"
+                 Text="1. Codex 로그인이 필요하면 로그인 절차를 완료합니다." />
+      <TextBlock Classes="usage-body"
+                 FontWeight="SemiBold"
+                 TextWrapping="Wrap"
+                 Text="2. CodexUsage를 종료한 뒤 다시 실행해 주세요." />
+      <TextBlock x:Name="CopyStatusText"
+                 Classes="usage-caption"
+                 Foreground="{DynamicResource UsageSuccessBrush}" />
+    </StackPanel>
+
+    <Grid Grid.Row="4"
+          ColumnDefinitions="*,Auto">
+      <TextBlock Classes="usage-caption"
+                 VerticalAlignment="Center"
+                 Text="Node.js와 npm이 설치되어 있어야 합니다." />
+      <Button Grid.Column="1"
+              Classes="usage-action"
+              MinWidth="88"
+              Click="OnClose"
+              Content="닫기" />
+    </Grid>
+  </Grid>
+</Window>

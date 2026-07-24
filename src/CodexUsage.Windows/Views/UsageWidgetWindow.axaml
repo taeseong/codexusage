@@ -1,0 +1,148 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CodexUsage.Windows.ViewModels"
+        x:Class="CodexUsage.Windows.Views.UsageWidgetWindow"
+        x:DataType="vm:WidgetSummaryViewModel"
+        Title="CodexUsage"
+        Width="160"
+        Height="34"
+        MinWidth="160"
+        MinHeight="34"
+        CanResize="False"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        WindowStartupLocation="CenterScreen">
+  <Window.Styles>
+    <Style Selector="Ellipse.widget-status">
+      <Setter Property="Fill" Value="{DynamicResource UsageSuccessBrush}" />
+    </Style>
+    <Style Selector="Ellipse.widget-status.notice">
+      <Setter Property="Fill" Value="{DynamicResource UsageErrorBrush}" />
+    </Style>
+    <Style Selector="Border.widget-progress-segment">
+      <Setter Property="Background" Value="{DynamicResource UsageBorderBrush}" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
+    <Style Selector="Border.widget-progress-segment.filled">
+      <Setter Property="Background" Value="{DynamicResource UsageAccentBrush}" />
+    </Style>
+    <Style Selector="Border.widget-progress-segment.filled.warning">
+      <Setter Property="Background" Value="{DynamicResource UsageWarningBrush}" />
+    </Style>
+    <Style Selector="Border.widget-progress-segment.filled.critical">
+      <Setter Property="Background" Value="{DynamicResource UsageErrorBrush}" />
+    </Style>
+  </Window.Styles>
+  <Border x:Name="DragSurface"
+          Background="{DynamicResource WindowsWidgetSurfaceBrush}"
+          BorderBrush="{DynamicResource UsageBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="10"
+          Padding="6,2"
+          PointerPressed="OnDragSurfacePointerPressed"
+          ToolTip.Tip="{Binding ToolTip}">
+    <Border.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="Quit"
+                  Click="OnQuitClicked" />
+      </ContextMenu>
+    </Border.ContextMenu>
+    <Grid ColumnDefinitions="24,*,6"
+          RowDefinitions="*,4"
+          ColumnSpacing="8"
+          RowSpacing="4">
+      <Border Grid.RowSpan="2"
+              Width="20"
+              Height="20"
+              CornerRadius="6"
+              Background="{DynamicResource UsageSurfaceSubtleBrush}"
+              VerticalAlignment="Center">
+        <Viewbox Width="13"
+                 Height="13"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center">
+          <Canvas Width="64" Height="64">
+            <Path Data="M 12,16 L 28,32 L 12,48"
+                  Fill="Transparent"
+                  Stroke="{DynamicResource UsageTextPrimaryBrush}"
+                  StrokeThickness="7"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round" />
+            <Path Data="M 36,48 L 53,48"
+                  Fill="Transparent"
+                  Stroke="{DynamicResource UsageTextPrimaryBrush}"
+                  StrokeThickness="7"
+                  StrokeLineCap="Round" />
+          </Canvas>
+        </Viewbox>
+      </Border>
+
+      <Grid Grid.Column="1"
+            ColumnDefinitions="*,Auto,*"
+            VerticalAlignment="Bottom"
+            Margin="0,0,0,2">
+        <Grid Grid.Column="0"
+              ColumnDefinitions="Auto,*">
+          <TextBlock Grid.Column="0"
+                     HorizontalAlignment="Left"
+                     FontSize="12"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource UsageTextPrimaryBrush}"
+                     Text="{Binding LeadingSummaryText}"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Grid.Column="1"
+                     HorizontalAlignment="Center"
+                     FontSize="12"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource UsageTextPrimaryBrush}"
+                     Text="{Binding UnlimitedShortTermText}" />
+        </Grid>
+        <TextBlock Grid.Column="1"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource UsageTextSecondaryBrush}"
+                   Text="{Binding SummaryDividerText}" />
+        <TextBlock Grid.Column="2"
+                   HorizontalAlignment="Right"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource UsageTextPrimaryBrush}"
+                   Text="{Binding TrailingSummaryText}"
+                   TextTrimming="CharacterEllipsis" />
+      </Grid>
+
+      <ItemsControl Grid.Column="1"
+                    Grid.Row="1"
+                    IsVisible="{Binding ShowWeeklyProgress}"
+                    ItemsSource="{Binding WeeklyProgressSegments}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Rows="1" Columns="10" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Classes="widget-progress-segment"
+                    Classes.filled="{Binding IsFilled}"
+                    Classes.warning="{Binding IsWarning}"
+                    Classes.critical="{Binding IsCritical}"
+                    Margin="0,0,2,0" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Ellipse Grid.Column="2"
+               Grid.RowSpan="2"
+               Width="6"
+               Height="6"
+               Classes="widget-status"
+               Classes.notice="{Binding HasNotice}"
+               VerticalAlignment="Center" />
+
+    </Grid>
+  </Border>
+</Window>

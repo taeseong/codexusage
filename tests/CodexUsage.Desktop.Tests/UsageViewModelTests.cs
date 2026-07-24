@@ -85,6 +85,50 @@ public sealed class UsageViewModelTests
     }
 
     [Fact]
+    public async Task RefreshAsync_ExposesOnlyCodexNotInstalledAsInstallGuidanceState()
+    {
+        // Given
+        var provider = new QueueUsageProvider(
+            new CodexUsageResult { Status = CodexUsageStatus.CodexNotInstalled },
+            new CodexUsageResult { Status = CodexUsageStatus.NotAuthenticated });
+        await using var viewModel = new UsageViewModel(provider, new FixedTimeProvider(Now));
+
+        // When
+        await viewModel.RefreshAsync();
+
+        // Then
+        Assert.True(viewModel.IsCodexNotInstalled);
+
+        // When
+        await viewModel.RefreshAsync();
+
+        // Then
+        Assert.False(viewModel.IsCodexNotInstalled);
+    }
+
+    [Fact]
+    public async Task RefreshCommand_DisablesWhileARefreshIsActive()
+    {
+        // Given
+        var provider = new BlockingSuccessProvider();
+        await using var viewModel = new UsageViewModel(provider, new FixedTimeProvider(Now));
+
+        // When
+        var refresh = viewModel.RefreshAsync();
+        await provider.Started.Task;
+
+        // Then
+        Assert.True(viewModel.IsBusy);
+        Assert.False(viewModel.RefreshCommand.CanExecute(null));
+
+        provider.Release.SetResult();
+        await refresh;
+
+        Assert.False(viewModel.IsBusy);
+        Assert.True(viewModel.RefreshCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void MenuBarPresentation_BeforeInitialRefresh_ShowsCompactLoadingState()
     {
         // Given
@@ -288,6 +332,20 @@ public sealed class UsageViewModelTests
             }
 
             return new CodexUsageResult { Status = CodexUsageStatus.Cancelled };
+        }
+    }
+
+    private sealed class BlockingSuccessProvider : ICodexUsageProvider
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<CodexUsageResult> GetUsageAsync(CancellationToken cancellationToken = default)
+        {
+            Started.SetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return Success(37d);
         }
     }
 }

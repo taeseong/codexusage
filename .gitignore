@@ -4,6 +4,26 @@ artifacts/
 TestResults/
 .DS_Store
 
+# Local IDE state and user-specific settings
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local credentials, signing material, and development-only configuration
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+local.settings.json
+secrets.json
+*.pfx
+*.p12
+*.pem
+*.key
+*.log
+
 .codegraph
 .codex
 .omo

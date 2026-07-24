@@ -8,11 +8,13 @@ src/
 ├─ CodexUsage.Codex/      Codex 탐색, App Server 프로토콜, DTO와 mapper
 ├─ CodexUsage.Poc/        실환경 검증용 콘솔 진입점
 ├─ CodexUsage.Desktop/    공통 Avalonia 컨트롤, ViewModel, 디자인 토큰
-└─ CodexUsage.macOS/      macOS 앱 수명, 메뉴 막대, 패키징 진입점
+├─ CodexUsage.macOS/      macOS 앱 수명, 메뉴 막대, 패키징 진입점
+└─ CodexUsage.Windows/    Windows 앱 수명, 위젯, Win32 창 제어와 트레이
 tests/
 ├─ CodexUsage.Core.Tests/
 ├─ CodexUsage.Codex.Tests/
-└─ CodexUsage.Desktop.Tests/
+├─ CodexUsage.Desktop.Tests/
+└─ CodexUsage.Windows.Tests/
 ```
 
 `CodexUsage.Core`는 Codex 원본 JSON을 알지 못합니다. `CodexUsage.Codex`가 버전별 프로토콜 DTO를 역직렬화하고 `RateLimitMapper`를 통해 `UsageLimit`과 `CodexUsageSnapshot`으로 변환합니다.
@@ -46,3 +48,24 @@ Codex App Server JSONL
 열린 macOS 팝오버는 live/loading처럼 구조가 같은 갱신에서는 기존 프레임을 유지합니다. failure 또는 secondary-limit 유무가 바뀔 때만 content geometry를 다시 계산하며, 상태 항목 제목의 실제 변경으로 메뉴 막대 anchor가 이동하면 열린 팝오버를 새 anchor에 다시 맞춥니다.
 
 macOS 프로젝트가 앱 수명과 `MacOSStatusItem`·`NativeUsagePopover` AppKit 어댑터를 소유합니다. `Program`은 프로세스 수명 동안 이름 있는 mutex를 보유해 같은 사용자 세션의 중복 실행을 즉시 종료합니다. `MenuBarPresentation`이 ViewModel 상태를 상태 항목 제목과 구조화된 primary/secondary limit 데이터로 변환하므로 AppKit 계층은 provider 응답을 알지 못합니다. 상태 항목은 `NSPopover`를 열고, 팝오버는 Minimal Split 시안의 헤더·사용/남음 2열·한도/초기화 행·footer를 네이티브 AppKit 뷰로 렌더링합니다. 앱은 Dock 없는 메뉴 막대 모드로 시작하고, 사용자가 `상세`를 선택할 때만 공통 Avalonia 창을 표시합니다. 명시적 종료는 ViewModel 취소, 창 닫기, 팝오버·상태 항목 해제 순서로 리소스를 정리합니다. 플랫폼 코드는 Core 또는 Codex 프로토콜 계층에 포함하지 않습니다.
+
+## Windows 플로팅 위젯
+
+`CodexUsage.Windows`는 공통 `UsageViewModel`과 `UsageLimitCard`를 사용하되 앱 수명, 플로팅 창, Win32 P/Invoke와 트레이를 소유합니다. 시작 창은 `WidgetSummaryViewModel`이 공통 ViewModel의 `MenuSummary`를 투영하는 `190×36` 요약 위젯이며, macOS와 동일한 두 벡터 경로의 `>_` 마크를 사용합니다. 전체 한도와 상태는 별도의 공통 `UsageWindow`에서 표시합니다. `WidgetInteractionState`가 편집/잠금 상태의 단일 출처이며 창과 트레이가 같은 상태를 관찰합니다.
+
+위젯은 Avalonia의 투명·비활성 Topmost 창 설정에 더해 HWND에 `WS_POPUP`, `WS_EX_LAYERED`, `WS_EX_TOOLWINDOW`, `WS_EX_NOACTIVATE`를 적용합니다. `WS_POPUP`은 일반 top-level 창의 최소 높이 보정을 제거하며, `SetWindowPos`가 현재 창 DPI로 환산한 실제 `190×36` 크기와 `HWND_TOPMOST`, `SWP_NOACTIVATE`를 함께 적용합니다. 잠금 상태에서만 `WS_EX_TRANSPARENT`를 추가합니다.
+
+Windows 작업표시줄도 Topmost 그룹에 있으므로 클릭 후 위젯보다 앞으로 재정렬될 수 있습니다. `WindowsTopmostGuard`는 `SetWinEventHook`으로 `EVENT_SYSTEM_FOREGROUND`와 작업표시줄의 `EVENT_OBJECT_REORDER`만 관찰하고, UI 스레드에 중복 제거된 Topmost 재적용을 예약합니다. 짧은 반복 타이머나 지속 폴링은 사용하지 않으며, 재적용에도 `SWP_NOACTIVATE`를 사용해 현재 foreground를 유지합니다. 창 종료 시 두 WinEvent hook을 모두 해제합니다.
+
+요약 위젯 전체는 편집 모드에서 드래그 표면으로 동작하며 더블클릭하거나 시스템 트레이의 `Open details`를 선택하면 상세 창을 표시합니다. 공간을 차지하는 인위젯 Lock 버튼은 두지 않고 시스템 트레이에서 편집/잠금을 전환합니다. 트레이 초기화가 실패하면 위젯을 편집 상태에 두어 클릭 통과에서 복구할 수 없는 상태를 방지합니다. 명시적 종료는 자동 갱신 취소, 상세/위젯 창 닫기, 요약 ViewModel과 트레이 해제, 애플리케이션 종료 순서로 수행합니다.
+
+첫 조회 결과가 `CodexNotInstalled`이면 Windows 앱은 프로세스당 한 번 설치 안내 창을 표시합니다. 안내 창은 공식 npm 설치 명령을 복사할 수 있게 하고, 설치와 로그인 후 Codex Usage를 종료하고 다시 실행하도록 설명합니다. 앱이 Codex CLI를 자동 설치하거나 인증 파일을 직접 읽지는 않습니다.
+
+설치 안내 창은 위젯이 있는 모니터의 작업 영역에서 위젯 아래에 우선 배치됩니다. 아래 공간이 부족하면 위·오른쪽·왼쪽 순으로 겹치지 않는 위치를 찾아 화면 내부로 보정합니다.
+
+Windows 실행 파일, 설치 안내 창 제목 표시와 시스템 트레이는 공통 `Assets/codex-usage.ico`를 사용합니다. 이 ICO는 Explorer와 알림 영역의 DPI별 표시를 위해 16~256px 레이어를 포함하며, 기존 macOS 전용 자산을 Windows 트레이에 재사용하지 않습니다.
+ICO의 `>_` 글리프는 설치 안내 창 헤더 아이콘과 같은 상대 크기와 선 굵기를 사용해 실행 파일·트레이·화면 표시 사이의 비율 차이를 방지합니다.
+
+Windows 기본 트레이 메뉴는 글꼴과 여백을 앱에서 제어할 수 없으므로, `WindowsTrayIcon`은 Windows Forms `NotifyIcon`과 `ContextMenuStrip`을 사용합니다. `DarkTrayMenuRenderer`가 Segoe UI, 어두운 표면, 좌측 텍스트 정렬, hover와 구분선을 직접 렌더링합니다. 좌클릭은 위젯 표시/숨김을 전환하고 우클릭은 이 스타일 메뉴를 엽니다.
+
+편집 모드의 요약 위젯은 Avalonia `ContextMenu`로 우클릭 `Quit` 항목을 제공합니다. 이 명령은 트레이의 `Quit`과 같은 앱 종료 경로를 사용합니다. 클릭 통과가 켜진 고정 모드에서는 위젯이 마우스 입력을 받지 않으므로 트레이의 복구·종료 메뉴를 사용합니다.
