@@ -30,7 +30,7 @@ For publish-only validation without Inno Setup:
 powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1 -SkipInstaller
 ```
 
-The installer places the app in `%LOCALAPPDATA%\Programs\Codex Usage`, creates a Start menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. It does not install Codex CLI or Node.js: users still need Codex CLI installed and signed in before usage data is available.
+The installer places the app in `%LOCALAPPDATA%\Programs\CodexUsage`, creates a Start menu shortcut, optionally creates a desktop shortcut, and registers an uninstaller. It does not install Codex CLI or Node.js: users still need Codex CLI installed and signed in before usage data is available.
 
 ## Release checklist
 

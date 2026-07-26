@@ -1,5 +1,9 @@
 # Architecture
 
+## Weekly usage history
+
+`UsageHistoryService` in Core turns successful weekly-limit snapshots into locally identified window observations. `resetsAt` is treated as a scheduling signal rather than an identity. The Windows JSON store writes `usage-history.json` atomically and the common detail window reads it through `IUsageHistoryStore`. Only peak observed percent, reset timing, and plan labels are retained; app-off time is not backfilled.
+
 ## 현재 구조
 
 ```text
@@ -51,9 +55,9 @@ macOS 프로젝트가 앱 수명과 `MacOSStatusItem`·`NativeUsagePopover` AppK
 
 ## Windows 플로팅 위젯
 
-`CodexUsage.Windows`는 공통 `UsageViewModel`과 `UsageLimitCard`를 사용하되 앱 수명, 플로팅 창, Win32 P/Invoke와 트레이를 소유합니다. 시작 창은 `WidgetSummaryViewModel`이 공통 ViewModel의 `MenuSummary`를 투영하는 `190×36` 요약 위젯이며, macOS와 동일한 두 벡터 경로의 `>_` 마크를 사용합니다. 전체 한도와 상태는 별도의 공통 `UsageWindow`에서 표시합니다. `WidgetInteractionState`가 편집/잠금 상태의 단일 출처이며 창과 트레이가 같은 상태를 관찰합니다.
+`CodexUsage.Windows`는 공통 `UsageViewModel`과 `UsageLimitCard`를 사용하되 앱 수명, 플로팅 창, Win32 P/Invoke와 트레이를 소유합니다. 시작 창은 `WidgetSummaryViewModel`이 공통 ViewModel의 `MenuSummary`를 투영하는 `160×34` 요약 위젯이며, macOS와 동일한 두 벡터 경로의 `>_` 마크를 사용합니다. 전체 한도와 상태는 별도의 공통 `UsageWindow`에서 표시합니다. `WidgetInteractionState`가 편집/잠금 상태의 단일 출처이며 창과 트레이가 같은 상태를 관찰합니다.
 
-위젯은 Avalonia의 투명·비활성 Topmost 창 설정에 더해 HWND에 `WS_POPUP`, `WS_EX_LAYERED`, `WS_EX_TOOLWINDOW`, `WS_EX_NOACTIVATE`를 적용합니다. `WS_POPUP`은 일반 top-level 창의 최소 높이 보정을 제거하며, `SetWindowPos`가 현재 창 DPI로 환산한 실제 `190×36` 크기와 `HWND_TOPMOST`, `SWP_NOACTIVATE`를 함께 적용합니다. 잠금 상태에서만 `WS_EX_TRANSPARENT`를 추가합니다.
+위젯은 Avalonia의 투명·비활성 Topmost 창 설정에 더해 HWND에 `WS_POPUP`, `WS_EX_LAYERED`, `WS_EX_TOOLWINDOW`, `WS_EX_NOACTIVATE`를 적용합니다. `WS_POPUP`은 일반 top-level 창의 최소 높이 보정을 제거하며, `SetWindowPos`가 현재 창 DPI로 환산한 실제 `160×34` 크기와 `HWND_TOPMOST`, `SWP_NOACTIVATE`를 함께 적용합니다. 잠금 상태에서만 `WS_EX_TRANSPARENT`를 추가합니다.
 
 Windows 작업표시줄도 Topmost 그룹에 있으므로 클릭 후 위젯보다 앞으로 재정렬될 수 있습니다. `WindowsTopmostGuard`는 `SetWinEventHook`으로 `EVENT_SYSTEM_FOREGROUND`와 작업표시줄의 `EVENT_OBJECT_REORDER`만 관찰하고, UI 스레드에 중복 제거된 Topmost 재적용을 예약합니다. 짧은 반복 타이머나 지속 폴링은 사용하지 않으며, 재적용에도 `SWP_NOACTIVATE`를 사용해 현재 foreground를 유지합니다. 창 종료 시 두 WinEvent hook을 모두 해제합니다.
 
@@ -69,3 +73,5 @@ ICO의 `>_` 글리프는 설치 안내 창 헤더 아이콘과 같은 상대 크
 Windows 기본 트레이 메뉴는 글꼴과 여백을 앱에서 제어할 수 없으므로, `WindowsTrayIcon`은 Windows Forms `NotifyIcon`과 `ContextMenuStrip`을 사용합니다. `DarkTrayMenuRenderer`가 Segoe UI, 어두운 표면, 좌측 텍스트 정렬, hover와 구분선을 직접 렌더링합니다. 좌클릭은 위젯 표시/숨김을 전환하고 우클릭은 이 스타일 메뉴를 엽니다.
 
 편집 모드의 요약 위젯은 Avalonia `ContextMenu`로 우클릭 `Quit` 항목을 제공합니다. 이 명령은 트레이의 `Quit`과 같은 앱 종료 경로를 사용합니다. 클릭 통과가 켜진 고정 모드에서는 위젯이 마우스 입력을 받지 않으므로 트레이의 복구·종료 메뉴를 사용합니다.
+
+Windows 설정은 사용자 로컬 `settings.json`에 저장합니다. 위젯 표시 여부와 편집/잠금 상태, 로그인 시 실행 여부, 사용량 알림 활성화 상태 및 한도별 알림 이력을 보존합니다. 위치 파일에는 X/Y와 함께 마지막 화면의 bounds·DPI 배율을 저장해 화면 배치가 바뀌어도 가장 가까운 화면을 선택한 뒤 작업 영역 안으로 보정합니다. 자동 실행은 현재 사용자 `Run` 레지스트리 키만 사용합니다. 알림은 트레이 풍선 알림으로 80%와 95%에서 reset 구간별 한 번씩 표시합니다.

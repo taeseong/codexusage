@@ -1,0 +1,112 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using CodexUsage.Core.Abstractions;
+using CodexUsage.Core.Usage;
+using CodexUsage.Core.UsageHistory;
+
+namespace CodexUsage.Desktop.ViewModels;
+
+public sealed class UsageHistoryViewModel : ObservableObject
+{
+    private readonly IUsageHistoryStore _store;
+    private readonly UsageHistoryService _service = new();
+    private UsageHistoryState _state = new();
+    private string? _currentPlan;
+    private string _statusText = "History will start with the next weekly usage observation.";
+    private bool _isUnavailable;
+    private bool _isClearConfirmationVisible;
+
+    public UsageHistoryViewModel(IUsageHistoryStore store)
+    {
+        _store = store;
+        RequestClearHistoryCommand = new RelayCommand(() => IsClearConfirmationVisible = true);
+        ConfirmClearHistoryCommand = new AsyncRelayCommand(ClearAsync);
+        CancelClearHistoryCommand = new RelayCommand(() => IsClearConfirmationVisible = false);
+    }
+
+    public ObservableCollection<WeeklyUsageWindowEntry> Windows { get; } = [];
+    public ObservableCollection<MonthlyUsageHistoryGroup> MonthlyGroups { get; } = [];
+    public IRelayCommand RequestClearHistoryCommand { get; }
+    public IAsyncRelayCommand ConfirmClearHistoryCommand { get; }
+    public IRelayCommand CancelClearHistoryCommand { get; }
+
+    public string StatusText { get => _statusText; private set => SetProperty(ref _statusText, value); }
+    public bool IsUnavailable { get => _isUnavailable; private set => SetProperty(ref _isUnavailable, value); }
+    public bool IsClearConfirmationVisible { get => _isClearConfirmationVisible; private set => SetProperty(ref _isClearConfirmationVisible, value); }
+    public bool HasWindows => Windows.Count > 0;
+    public bool HasComparableHistory => Metrics.ComparableWindowCount >= 3;
+    public UsageHistoryMetrics Metrics => _service.CalculateMetrics(_state, _currentPlan);
+    public string MetricsText => !HasComparableHistory
+        ? "Not enough comparable history"
+        : $"Average peak {Metrics.AveragePeakObservedPercent:0}% · High {Metrics.HighestPeakObservedPercent:0}% · 80%+ {Metrics.Reached80PercentCount} · 95%+ {Metrics.Reached95PercentCount}";
+
+    public async Task InitializeAsync()
+    {
+        try { _state = await _store.LoadAsync(); RefreshView(); }
+        catch { IsUnavailable = true; StatusText = "History unavailable"; }
+    }
+
+    public async Task ObserveAsync(CodexUsageSnapshot snapshot)
+    {
+        if (IsUnavailable) return;
+        _currentPlan = string.IsNullOrWhiteSpace(snapshot.AccountPlan) ? snapshot.RateLimitPlan : snapshot.AccountPlan;
+        if (!_service.Observe(_state, snapshot, out var updated)) return;
+        _state = updated;
+        try { await _store.SaveAsync(_state); RefreshView(); }
+        catch { IsUnavailable = true; StatusText = "History unavailable"; OnPropertyChanged(nameof(IsUnavailable)); }
+    }
+
+    private async Task ClearAsync()
+    {
+        try
+        {
+            await _store.ClearAsync();
+            _state = new UsageHistoryState();
+            IsClearConfirmationVisible = false;
+            RefreshView();
+        }
+        catch { IsUnavailable = true; StatusText = "History unavailable"; }
+    }
+
+    private void RefreshView()
+    {
+        Windows.Clear();
+        foreach (var entry in _state.Windows.OrderByDescending(entry => entry.FirstObservedAt).Take(12)) Windows.Add(entry);
+        MonthlyGroups.Clear();
+        foreach (var group in Windows
+                     .GroupBy(entry => new DateTime(entry.FirstObservedAt.LocalDateTime.Year, entry.FirstObservedAt.LocalDateTime.Month, 1))
+                     .OrderByDescending(group => group.Key))
+        {
+            MonthlyGroups.Add(new MonthlyUsageHistoryGroup(
+                group.Key,
+                group.OrderByDescending(entry => entry.FirstObservedAt).ToArray()));
+        }
+        StatusText = Windows.Count == 0
+            ? "History starts after this feature is installed; peak observed values are not total usage."
+            : "Peak observed values only. Time while the app was closed is not inferred.";
+        OnPropertyChanged(nameof(HasWindows));
+        OnPropertyChanged(nameof(Metrics));
+        OnPropertyChanged(nameof(HasComparableHistory));
+        OnPropertyChanged(nameof(MetricsText));
+    }
+}
+
+public sealed class MonthlyUsageHistoryGroup
+{
+    public MonthlyUsageHistoryGroup(DateTime month, IReadOnlyList<WeeklyUsageWindowEntry> entries)
+    {
+        Month = month;
+        Entries = entries;
+    }
+
+    public DateTime Month { get; }
+    public IReadOnlyList<WeeklyUsageWindowEntry> Entries { get; }
+    public string MonthDisplayText => Month.ToString("MMM yyyy", CultureInfo.InvariantCulture);
+    public double AveragePeakObservedPercent => Entries.Average(entry => entry.PeakObservedPercent);
+    public double HighestPeakObservedPercent => Entries.Max(entry => entry.PeakObservedPercent);
+    public string SummaryText => string.Create(
+        CultureInfo.InvariantCulture,
+        $"Avg peak {AveragePeakObservedPercent:0}% · High {HighestPeakObservedPercent:0}%");
+}

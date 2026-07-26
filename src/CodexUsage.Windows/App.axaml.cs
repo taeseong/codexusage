@@ -6,9 +6,13 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using CodexUsage.Codex;
+using CodexUsage.Core.Usage;
 using CodexUsage.Desktop.ViewModels;
 using CodexUsage.Desktop.Views;
 using CodexUsage.Windows.SystemTray;
+using CodexUsage.Windows.Notifications;
+using CodexUsage.Windows.Settings;
+using CodexUsage.Windows.Startup;
 using CodexUsage.Windows.ViewModels;
 using CodexUsage.Windows.Views;
 using CodexUsage.Windows.Windowing;
@@ -26,6 +30,12 @@ public partial class App : Application
     private WidgetInteractionState? _interactionState;
     private WindowsTrayIcon? _trayIcon;
     private readonly WidgetPositionStore _widgetPositionStore = new();
+    private readonly WindowsAppSettingsStore _settingsStore = new();
+    private readonly WindowsStartupService _startupService = new();
+    private readonly UsageThresholdNotifier _usageThresholdNotifier = new();
+    private readonly JsonUsageHistoryStore _usageHistoryStore = new();
+    private UsageHistoryViewModel? _usageHistoryViewModel;
+    private WindowsAppSettings _settings = new();
     private bool _hasShownCodexInstallGuidance;
     private bool _isQuitting;
 
@@ -44,14 +54,22 @@ public partial class App : Application
     private void ConfigureWindowsApp(IClassicDesktopStyleApplicationLifetime desktop)
     {
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        _settings = _settingsStore.Load();
         _usageViewModel = new UsageViewModel(new LiveCodexUsageProvider());
+        _usageHistoryViewModel = new UsageHistoryViewModel(_usageHistoryStore);
+        _usageViewModel.History = _usageHistoryViewModel;
         _usageViewModel.PropertyChanged += OnUsagePropertyChanged;
+        _usageViewModel.SnapshotRefreshed += OnSnapshotRefreshed;
         _widgetSummaryViewModel = new WidgetSummaryViewModel(_usageViewModel);
         _interactionState = new WidgetInteractionState();
         if (string.Equals(
                 Environment.GetEnvironmentVariable("CODEX_USAGE_START_LOCKED"),
                 "1",
                 StringComparison.Ordinal))
+        {
+            _interactionState.EnterLockedMode();
+        }
+        else if (_settings.WidgetMode is WidgetInteractionMode.Locked)
         {
             _interactionState.EnterLockedMode();
         }
@@ -83,16 +101,27 @@ public partial class App : Application
         try
         {
             ConfigureTray(desktop);
+            _startupService.SetEnabled(_settings.StartAtLogin);
         }
         catch (Exception exception)
         {
-            Trace.TraceError("The Windows tray icon could not be created: {0}", exception.GetType().Name);
-            _widgetWindow.SetLockingAvailable(
-                false,
-                "The system tray is unavailable. Click-through is disabled so the widget remains recoverable.");
+            Trace.TraceError("Windows tray or startup configuration failed: {0}", exception.GetType().Name);
+            if (_trayIcon is null)
+            {
+                _widgetWindow.SetLockingAvailable(
+                    false,
+                    "The system tray is unavailable. Click-through is disabled so the widget remains recoverable.");
+            }
         }
 
-        _widgetWindow.ShowWithoutActivation();
+        if (_settings.IsWidgetVisible)
+        {
+            _widgetWindow.ShowWithoutActivation();
+        }
+        else
+        {
+            _trayIcon?.UpdateWidgetVisibility(false);
+        }
         StartUsage(desktop);
     }
 
@@ -107,15 +136,23 @@ public partial class App : Application
         _trayIcon.VisibilityToggleRequested += (_, _) => ToggleWidgetVisibility();
         _trayIcon.ModeToggleRequested += (_, _) => ToggleInteractionMode();
         _trayIcon.RefreshRequested += OnRefreshRequested;
+        _trayIcon.StartupToggleRequested += (_, _) => ToggleStartupAtLogin();
+        _trayIcon.UsageAlertsToggleRequested += (_, _) => ToggleUsageAlerts();
         _trayIcon.DetailsRequested += (_, _) => ShowDetails();
         _trayIcon.AboutRequested += (_, _) => ShowAbout();
         _trayIcon.QuitRequested += (_, _) => Quit(desktop);
+        _trayIcon.UpdateStartAtLogin(_settings.StartAtLogin);
+        _trayIcon.UpdateUsageAlerts(_settings.UsageAlertsEnabled);
     }
 
     private async void StartUsage(IClassicDesktopStyleApplicationLifetime desktop)
     {
         try
         {
+            if (_usageHistoryViewModel is not null)
+            {
+                await _usageHistoryViewModel.InitializeAsync();
+            }
             if (_usageViewModel is not null)
             {
                 await _usageViewModel.StartAsync();
@@ -226,6 +263,23 @@ public partial class App : Application
         }
     }
 
+    private async void OnSnapshotRefreshed(CodexUsageSnapshot snapshot)
+    {
+        var alerts = _usageThresholdNotifier.Evaluate(snapshot, _settings, out var history);
+        _settings = _settings with { AlertHistory = history };
+        PersistSettings();
+
+        foreach (var alert in alerts)
+        {
+            _trayIcon?.ShowUsageAlert(alert.Title, alert.Message);
+        }
+
+        if (_usageHistoryViewModel is not null)
+        {
+            await _usageHistoryViewModel.ObserveAsync(snapshot);
+        }
+    }
+
     private void ShowCodexInstallGuidance()
     {
         if (_codexCliInstallWindow is null)
@@ -264,6 +318,7 @@ public partial class App : Application
         }
 
         _trayIcon?.UpdateWidgetVisibility(_widgetWindow.IsVisible);
+        PersistSettings();
     }
 
     private void ToggleInteractionMode()
@@ -279,6 +334,32 @@ public partial class App : Application
             _widgetWindow.ShowWithoutActivation();
             _trayIcon?.UpdateWidgetVisibility(true);
         }
+
+        PersistSettings();
+    }
+
+    private void ToggleStartupAtLogin()
+    {
+        var enabled = !_settings.StartAtLogin;
+        try
+        {
+            _startupService.SetEnabled(enabled);
+            _settings = _settings with { StartAtLogin = enabled };
+            _trayIcon?.UpdateStartAtLogin(enabled);
+            PersistSettings();
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Windows startup registration failed: {0}", exception.GetType().Name);
+        }
+    }
+
+    private void ToggleUsageAlerts()
+    {
+        var enabled = !_settings.UsageAlertsEnabled;
+        _settings = _settings with { UsageAlertsEnabled = enabled };
+        _trayIcon?.UpdateUsageAlerts(enabled);
+        PersistSettings();
     }
 
     private void ShowDetails()
@@ -322,6 +403,7 @@ public partial class App : Application
         if (_usageViewModel is not null)
         {
             _usageViewModel.PropertyChanged -= OnUsagePropertyChanged;
+            _usageViewModel.SnapshotRefreshed -= OnSnapshotRefreshed;
             await _usageViewModel.DisposeAsync();
         }
 
@@ -340,7 +422,8 @@ public partial class App : Application
 
         if (_widgetWindow is not null)
         {
-            _widgetPositionStore.Save(_widgetWindow.Position);
+            _widgetPositionStore.Save(_widgetWindow.GetPositionRestorePoint());
+            PersistSettings();
             _widgetWindow.AllowClose();
             _widgetWindow.Close();
         }
@@ -348,5 +431,15 @@ public partial class App : Application
         _widgetSummaryViewModel?.Dispose();
         _trayIcon?.Dispose();
         desktop.Shutdown();
+    }
+
+    private void PersistSettings()
+    {
+        _settings = _settings with
+        {
+            IsWidgetVisible = _widgetWindow?.IsVisible ?? _settings.IsWidgetVisible,
+            WidgetMode = _interactionState?.Mode ?? _settings.WidgetMode,
+        };
+        _settingsStore.Save(_settings);
     }
 }

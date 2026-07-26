@@ -13,8 +13,12 @@ internal sealed class WindowsTrayIcon : IDisposable
     private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _visibilityItem;
     private readonly ToolStripMenuItem _modeItem;
+    private readonly ToolStripMenuItem _startupItem;
+    private readonly ToolStripMenuItem _usageAlertsItem;
     private readonly Icon _icon;
     private bool _widgetVisible = true;
+    private bool _startAtLogin;
+    private bool _usageAlertsEnabled = true;
     private bool _disposed;
 
     public WindowsTrayIcon(WidgetInteractionState interactionState)
@@ -24,6 +28,10 @@ internal sealed class WindowsTrayIcon : IDisposable
             VisibilityToggleRequested?.Invoke(this, EventArgs.Empty));
         _modeItem = CreateMenuItem("Lock widget", (_, _) =>
             ModeToggleRequested?.Invoke(this, EventArgs.Empty));
+        _startupItem = CreateMenuItem("Run at sign-in", (_, _) =>
+            StartupToggleRequested?.Invoke(this, EventArgs.Empty));
+        _usageAlertsItem = CreateMenuItem("Usage alerts", (_, _) =>
+            UsageAlertsToggleRequested?.Invoke(this, EventArgs.Empty));
         var refreshItem = CreateMenuItem("Refresh now", (_, _) =>
             RefreshRequested?.Invoke(this, EventArgs.Empty));
         var detailsItem = CreateMenuItem("Open details", (_, _) =>
@@ -46,6 +54,9 @@ internal sealed class WindowsTrayIcon : IDisposable
         };
         _menu.Items.Add(_visibilityItem);
         _menu.Items.Add(_modeItem);
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add(_startupItem);
+        _menu.Items.Add(_usageAlertsItem);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(refreshItem);
         _menu.Items.Add(detailsItem);
@@ -76,6 +87,10 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     public event EventHandler? RefreshRequested;
 
+    public event EventHandler? StartupToggleRequested;
+
+    public event EventHandler? UsageAlertsToggleRequested;
+
     public event EventHandler? DetailsRequested;
 
     public event EventHandler? AboutRequested;
@@ -92,6 +107,24 @@ internal sealed class WindowsTrayIcon : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _trayIcon.Text = toolTip.Length <= 63 ? toolTip : toolTip[..63];
+    }
+
+    public void UpdateStartAtLogin(bool enabled)
+    {
+        _startAtLogin = enabled;
+        UpdateHeaders();
+    }
+
+    public void UpdateUsageAlerts(bool enabled)
+    {
+        _usageAlertsEnabled = enabled;
+        UpdateHeaders();
+    }
+
+    public void ShowUsageAlert(string title, string message)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _trayIcon.ShowBalloonTip(8_000, title, message, ToolTipIcon.Warning);
     }
 
     internal void ShowMenuAt(Point screenPosition)
@@ -165,6 +198,8 @@ internal sealed class WindowsTrayIcon : IDisposable
         _modeItem.Text = _interactionState.IsEditing
             ? "Lock widget (click-through)"
             : "Enter edit mode";
+        _startupItem.Text = _startAtLogin ? "Run at sign-in: On" : "Run at sign-in: Off";
+        _usageAlertsItem.Text = _usageAlertsEnabled ? "Usage alerts: On" : "Usage alerts: Off";
     }
 }
 

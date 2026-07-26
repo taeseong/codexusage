@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using CodexUsage.Windows.Windowing;
+using AvaloniaScreen = Avalonia.Platform.Screen;
 
 namespace CodexUsage.Windows.Views;
 
@@ -14,7 +15,7 @@ public partial class UsageWidgetWindow : Window
     private readonly WidgetInteractionState _interactionState;
     private readonly WindowsWidgetWindowController _windowController = new();
     private WindowsTopmostGuard? _topmostGuard;
-    private PixelPoint? _restoredPosition;
+    private WidgetPositionRestorePoint? _restoredPosition;
     private bool _allowClose;
 
     public UsageWidgetWindow()
@@ -40,10 +41,18 @@ public partial class UsageWidgetWindow : Window
         ApplyNativeState();
     }
 
-    public void RestoreSavedPosition(PixelPoint position)
+    internal void RestoreSavedPosition(WidgetPositionRestorePoint restorePoint)
     {
-        _restoredPosition = position;
-        Position = position;
+        _restoredPosition = restorePoint;
+        Position = restorePoint.Position;
+    }
+
+    internal WidgetPositionRestorePoint GetPositionRestorePoint()
+    {
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.ScreenFromPoint(Position);
+        return new WidgetPositionRestorePoint(
+            Position,
+            screen is null ? null : new WidgetScreenHint(screen.Bounds, screen.Scaling));
     }
 
     public void AllowClose() => _allowClose = true;
@@ -89,11 +98,11 @@ public partial class UsageWidgetWindow : Window
 
     private void OnOpened(object? sender, EventArgs e)
     {
-        if (_restoredPosition is { } position &&
-            (Screens.ScreenFromPoint(position) ?? Screens.Primary) is { } targetScreen)
+        if (_restoredPosition is { } restorePoint &&
+            FindRestoreScreen(restorePoint) is { } targetScreen)
         {
             Position = WidgetPositionPlacement.ClampToWorkingArea(
-                position,
+                restorePoint.Position,
                 new PixelSize((int)ClientSize.Width, (int)ClientSize.Height),
                 targetScreen.WorkingArea);
         }
@@ -115,6 +124,23 @@ public partial class UsageWidgetWindow : Window
     private void OnInteractionStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         ApplyNativeState();
+    }
+
+    private AvaloniaScreen? FindRestoreScreen(WidgetPositionRestorePoint restorePoint)
+    {
+        if (restorePoint.Screen is { } savedScreen && Screens.All.Count > 0)
+        {
+            var availableScreens = Screens.All
+                .Select(screen => new WidgetScreenHint(screen.Bounds, screen.Scaling))
+                .ToArray();
+            var bestIndex = WidgetPositionPlacement.FindBestScreenIndex(savedScreen, availableScreens);
+            if (bestIndex >= 0)
+            {
+                return Screens.All[bestIndex];
+            }
+        }
+
+        return Screens.ScreenFromPoint(restorePoint.Position) ?? Screens.Primary;
     }
 
     private void OnDragSurfacePointerPressed(object? sender, PointerPressedEventArgs e)

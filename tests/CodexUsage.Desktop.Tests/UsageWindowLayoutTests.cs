@@ -12,9 +12,9 @@ public sealed class UsageWindowLayoutTests
             .Root!;
 
         Assert.Equal("420", (string?)window.Attribute("Width"));
-        Assert.Equal("540", (string?)window.Attribute("Height"));
+        Assert.Equal("660", (string?)window.Attribute("Height"));
         Assert.Equal("380", (string?)window.Attribute("MinWidth"));
-        Assert.Equal("520", (string?)window.Attribute("MinHeight"));
+        Assert.Equal("620", (string?)window.Attribute("MinHeight"));
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class UsageWindowLayoutTests
 
         var loadingIndicator = window
             .Descendants(avalonia + "ProgressBar")
-            .Single();
+            .Single(element => (string?)element.Attribute("Classes") == "usage-window-loading");
 
         Assert.Null(loadingIndicator.Attribute("IsVisible"));
         Assert.Equal(
@@ -95,5 +95,24 @@ public sealed class UsageWindowLayoutTests
         Assert.Equal(
             "{Binding IsBusy}",
             (string?)loadingIndicator.Attribute("Classes.busy"));
+    }
+
+    [Fact]
+    public void History_UsesMonthlyGroupsWithWeeklyRows()
+    {
+        var window = XDocument
+            .Load(Path.Combine(AppContext.BaseDirectory, "TestAssets", "UsageWindow.axaml"))
+            .Root!;
+        XNamespace avalonia = "https://github.com/avaloniaui";
+
+        Assert.Contains(
+            window.Descendants(avalonia + "ItemsControl"),
+            element => (string?)element.Attribute("ItemsSource") == "{Binding MonthlyGroups}");
+        Assert.Contains(
+            window.Descendants(avalonia + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding MonthDisplayText}");
+        Assert.Contains(
+            window.Descendants(avalonia + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding DateRangeText}");
     }
 }

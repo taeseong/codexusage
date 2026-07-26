@@ -42,6 +42,10 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
 
     public UsageLimitItemViewModel Weekly { get; } = new("Weekly");
 
+    public UsageHistoryViewModel? History { get; set; }
+
+    public event Action<CodexUsageSnapshot>? SnapshotRefreshed;
+
     public ICommand RefreshCommand => _refreshCommand;
 
     public string StatusTitle
@@ -219,6 +223,7 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
         IsWarningNotice = false;
         OnPropertyChanged(nameof(MenuSummary));
         OnPropertyChanged(nameof(TrayToolTip));
+        SnapshotRefreshed?.Invoke(snapshot);
     }
 
     private void ApplyFailure(CodexUsageStatus status)

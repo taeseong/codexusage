@@ -17,10 +17,14 @@ public sealed class WindowsWidgetWindowControllerTests
             (_, value) => storedJson = value,
             directory => createdDirectory = directory);
 
-        store.Save(new PixelPoint(420, 240));
+        var restorePoint = new WidgetPositionRestorePoint(
+            new PixelPoint(420, 240),
+            new WidgetScreenHint(new PixelRect(1920, 0, 2560, 1440), 1.5));
+
+        store.Save(restorePoint);
 
         Assert.Equal(@"C:\test\CodexUsage", createdDirectory);
-        Assert.Equal(new PixelPoint(420, 240), store.Load());
+        Assert.Equal(restorePoint, store.Load());
     }
 
     [Fact]
@@ -45,6 +49,36 @@ public sealed class WindowsWidgetWindowControllerTests
             new PixelRect(0, 0, 1920, 1080));
 
         Assert.Equal(new PixelPoint(1760, 0), position);
+    }
+
+    [Fact]
+    public void WidgetPositionPlacement_PrefersTheSavedScreenWhenItsOriginChanges()
+    {
+        var savedScreen = new WidgetScreenHint(new PixelRect(1920, 0, 2560, 1440), 1.5);
+        var availableScreens = new[]
+        {
+            new WidgetScreenHint(new PixelRect(0, 0, 1920, 1080), 1),
+            new WidgetScreenHint(new PixelRect(-2560, 0, 2560, 1440), 1.5),
+        };
+
+        var index = WidgetPositionPlacement.FindBestScreenIndex(savedScreen, availableScreens);
+
+        Assert.Equal(1, index);
+    }
+
+    [Fact]
+    public void WidgetPositionPlacement_PrefersAnExactSavedScreenMatch()
+    {
+        var savedScreen = new WidgetScreenHint(new PixelRect(0, 0, 1920, 1080), 1);
+        var availableScreens = new[]
+        {
+            new WidgetScreenHint(new PixelRect(-2560, 0, 2560, 1440), 1.5),
+            savedScreen,
+        };
+
+        var index = WidgetPositionPlacement.FindBestScreenIndex(savedScreen, availableScreens);
+
+        Assert.Equal(1, index);
     }
 
     [Fact]

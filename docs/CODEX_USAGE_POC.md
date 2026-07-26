@@ -1,5 +1,9 @@
 # Codex Usage PoC
 
+## History consumer boundary
+
+The history feature consumes only `usedPercent`, `windowDurationMins`, `resetsAt`, and the rate-limit/account plan values already returned by `account/rateLimits/read` and `account/read`. It does not access credentials, cookies, or any additional local Codex data.
+
 ## 검증 환경
 
 - 최종 PoC 및 공식 화면 비교 시각: 2026-07-22 09:25 KST

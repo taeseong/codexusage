@@ -35,7 +35,7 @@ internal sealed class WidgetPositionStore
         _createDirectory = createDirectory;
     }
 
-    public PixelPoint? Load()
+    public WidgetPositionRestorePoint? Load()
     {
         try
         {
@@ -46,7 +46,19 @@ internal sealed class WidgetPositionStore
             }
 
             var stored = JsonSerializer.Deserialize<StoredWidgetPosition>(_readAllText(path));
-            return stored is null ? null : new PixelPoint(stored.X, stored.Y);
+            return stored is null
+                ? null
+                : new WidgetPositionRestorePoint(
+                    new PixelPoint(stored.X, stored.Y),
+                    stored.Screen is null
+                        ? null
+                        : new WidgetScreenHint(
+                            new PixelRect(
+                                stored.Screen.BoundsX,
+                                stored.Screen.BoundsY,
+                                stored.Screen.BoundsWidth,
+                                stored.Screen.BoundsHeight),
+                            stored.Screen.Scaling));
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
@@ -55,7 +67,7 @@ internal sealed class WidgetPositionStore
         }
     }
 
-    public void Save(PixelPoint position)
+    public void Save(WidgetPositionRestorePoint restorePoint)
     {
         try
         {
@@ -66,7 +78,21 @@ internal sealed class WidgetPositionStore
                 _createDirectory(directory);
             }
 
-            _writeAllText(path, JsonSerializer.Serialize(new StoredWidgetPosition(position.X, position.Y)));
+            var screen = restorePoint.Screen;
+            _writeAllText(
+                path,
+                JsonSerializer.Serialize(
+                    new StoredWidgetPosition(
+                        restorePoint.Position.X,
+                        restorePoint.Position.Y,
+                        screen is null
+                            ? null
+                            : new StoredScreen(
+                                screen.Bounds.X,
+                                screen.Bounds.Y,
+                                screen.Bounds.Width,
+                                screen.Bounds.Height,
+                                screen.Scaling))));
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or ArgumentException)
@@ -74,7 +100,14 @@ internal sealed class WidgetPositionStore
         }
     }
 
-    private sealed record StoredWidgetPosition(int X, int Y);
+    private sealed record StoredWidgetPosition(int X, int Y, StoredScreen? Screen = null);
+
+    private sealed record StoredScreen(
+        int BoundsX,
+        int BoundsY,
+        int BoundsWidth,
+        int BoundsHeight,
+        double Scaling);
 
     private static string GetDefaultPath()
     {

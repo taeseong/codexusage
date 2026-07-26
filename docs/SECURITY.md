@@ -1,5 +1,9 @@
 # Security
 
+## Local usage history
+
+`usage-history.json` contains only weekly limit IDs, locally generated window IDs, observed percentages, reset timing, and plan labels. It does not contain tokens, email addresses, account IDs, prompts, or Codex conversation content. History remains local and is never sent to an external service.
+
 ## 인증정보 취급
 
 Codex Usage는 기존 Codex CLI가 관리하는 로그인 컨텍스트를 App Server를 통해 사용합니다. 인증 파일이나 macOS Keychain을 직접 읽지 않으며 access token, refresh token, 브라우저 쿠키 또는 비밀번호를 저장하지 않습니다.

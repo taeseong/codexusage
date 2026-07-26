@@ -120,7 +120,7 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("new UsageWindow", source, StringComparison.Ordinal);
         Assert.Contains("WidgetPositionStore", source, StringComparison.Ordinal);
         Assert.Contains("RestoreSavedPosition", source, StringComparison.Ordinal);
-        Assert.Contains("_widgetPositionStore.Save(_widgetWindow.Position)", source, StringComparison.Ordinal);
+        Assert.Contains("GetPositionRestorePoint", source, StringComparison.Ordinal);
         Assert.Contains("DetailsRequested", source, StringComparison.Ordinal);
         Assert.Contains("QuitRequested", source, StringComparison.Ordinal);
     }
@@ -181,6 +181,8 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("SaveMenuScreenshot", source, StringComparison.Ordinal);
         Assert.Contains("About CodexUsage", source, StringComparison.Ordinal);
         Assert.Contains("AboutRequested", source, StringComparison.Ordinal);
+        Assert.Contains("Run at sign-in", source, StringComparison.Ordinal);
+        Assert.Contains("Usage alerts", source, StringComparison.Ordinal);
     }
 
     [Fact]

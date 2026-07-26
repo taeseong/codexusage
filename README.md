@@ -6,8 +6,10 @@ CodexUsage is a small desktop utility that keeps your Codex usage limits visible
 
 - Shows short-term and weekly Codex usage in a compact Windows floating widget.
 - Keeps the widget above normal application windows without stealing focus.
-- Supports drag-to-position, click-through lock mode, position restore, and system-tray controls.
+- Supports drag-to-position, click-through lock mode, position and display-state restore, and system-tray controls.
+- Can run at Windows sign-in and alert once at 80% and 95% usage within each reset window.
 - Provides a detail window with usage, reset, refresh, login, stale-data, and error states.
+- Keeps an optional local history of weekly-limit peak observations and plan changes; it never estimates usage while the app is closed.
 - Reads usage through the locally authenticated Codex App Server; it does not require a separate account or API key.
 
 ## Windows
