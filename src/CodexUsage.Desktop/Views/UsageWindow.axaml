@@ -10,8 +10,10 @@
         MinWidth="380"
         MinHeight="620"
         Background="{DynamicResource UsageSurfaceAppBrush}"
+        AutomationProperties.Name="CodexUsage details"
         WindowStartupLocation="CenterScreen">
-  <TabControl>
+  <TabControl x:Name="DetailsTabs"
+              AutomationProperties.Name="Usage details sections">
     <TabControl.Styles>
       <Style Selector="TabItem">
         <Setter Property="FontSize" Value="13" />
@@ -20,7 +22,8 @@
         <Setter Property="MinHeight" Value="28" />
       </Style>
     </TabControl.Styles>
-    <TabItem Header="Current">
+    <TabItem Header="Current"
+             AutomationProperties.Name="Current usage">
   <ScrollViewer>
     <StackPanel Margin="{StaticResource UsagePaddingPage}"
                 Spacing="{StaticResource UsageSpace4}">
@@ -32,6 +35,7 @@
         <Button Grid.Column="1"
                 Classes="usage-action"
                 MinWidth="88"
+                AutomationProperties.Name="Refresh Codex usage"
                 Command="{Binding RefreshCommand}"
                 Content="Refresh" />
       </Grid>
@@ -44,6 +48,7 @@
       </Grid>
 
       <controls:UsageLimitCard Title="{Binding ShortTerm.Title}"
+                               AutomationProperties.Name="5-hour usage"
                                AvailabilityText="{Binding ShortTerm.AvailabilityText}"
                                UsedText="{Binding ShortTerm.UsedText}"
                                RemainingText="{Binding ShortTerm.RemainingText}"
@@ -53,6 +58,7 @@
                                IsLoading="{Binding IsBusy}" />
 
       <controls:UsageLimitCard Title="{Binding Weekly.Title}"
+                               AutomationProperties.Name="Weekly usage"
                                AvailabilityText="{Binding Weekly.AvailabilityText}"
                                UsedText="{Binding Weekly.UsedText}"
                                RemainingText="{Binding Weekly.RemainingText}"
@@ -63,11 +69,26 @@
 
       <Border Classes="usage-card usage-notice"
               Classes.warning="{Binding IsWarningNotice}"
+              AutomationProperties.Name="{Binding StatusTitle}"
+              AutomationProperties.HelpText="{Binding StatusDetail}"
               IsVisible="{Binding HasNotice}">
         <StackPanel Spacing="{StaticResource UsageSpace2}">
-          <TextBlock Classes="usage-section usage-notice-title"
-                     Classes.warning="{Binding IsWarningNotice}"
-                     Text="{Binding StatusTitle}" />
+          <Grid ColumnDefinitions="*,Auto"
+                ColumnSpacing="{StaticResource UsageSpace2}">
+            <TextBlock Classes="usage-section usage-notice-title"
+                       Classes.warning="{Binding IsWarningNotice}"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{Binding StatusTitle}" />
+            <Button Grid.Column="1"
+                    Classes="usage-action"
+                    MinHeight="36"
+                    HorizontalAlignment="Right"
+                    AutomationProperties.Name="{Binding RecoveryActionText}"
+                    IsVisible="{Binding HasRecoveryAction}"
+                    Command="{Binding RecoveryActionCommand}"
+                    Content="{Binding RecoveryActionText}" />
+          </Grid>
           <TextBlock Classes="usage-body"
                      TextWrapping="Wrap"
                      Text="{Binding StatusDetail}" />
@@ -88,28 +109,61 @@
     </StackPanel>
   </ScrollViewer>
     </TabItem>
-    <TabItem Header="History">
+    <TabItem Header="History"
+             AutomationProperties.Name="Weekly usage history">
       <ScrollViewer>
         <StackPanel Margin="{StaticResource UsagePaddingPage}" Spacing="{StaticResource UsageSpace3}"
                     DataContext="{Binding History}">
           <TextBlock Classes="usage-title" Text="Weekly history" />
           <TextBlock Classes="usage-caption" Text="{Binding StatusText}" TextWrapping="Wrap" />
+          <Button Classes="usage-action"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.Name="Retry loading usage history"
+                  IsVisible="{Binding IsUnavailable}"
+                  Command="{Binding RetryHistoryCommand}"
+                  Content="Retry history" />
           <Border Classes="usage-card" IsVisible="{Binding HasComparableHistory}">
             <TextBlock Classes="usage-body" Text="{Binding MetricsText}" TextWrapping="Wrap" />
           </Border>
-          <TextBlock Classes="usage-caption" Text="{Binding MetricsText}" />
-          <ItemsControl ItemsSource="{Binding MonthlyGroups}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <StackPanel Spacing="8" Margin="0,0,0,14">
-                  <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="usage-caption"
+                     IsVisible="{Binding HasInsufficientComparableHistory}"
+                     Text="{Binding MetricsText}" />
+          <StackPanel Spacing="3" IsVisible="{Binding HasWindows}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+              <Button Classes="usage-action"
+                      AutomationProperties.Name="Show older history month"
+                      Command="{Binding ShowOlderMonthCommand}"
+                      Content="‹ Older" />
+              <ComboBox Grid.Column="1"
+                        AutomationProperties.Name="History month"
+                        HorizontalAlignment="Center"
+                        MinWidth="132"
+                        ItemsSource="{Binding MonthlyGroups}"
+                        SelectedItem="{Binding SelectedMonthGroup, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
                     <TextBlock Classes="usage-section" Text="{Binding MonthDisplayText}" />
-                    <TextBlock Grid.Column="1" Classes="usage-caption" Text="{Binding SummaryText}" />
-                  </Grid>
-                  <ItemsControl ItemsSource="{Binding Entries}">
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Grid.Column="2"
+                      Classes="usage-action"
+                      AutomationProperties.Name="Show newer history month"
+                      Command="{Binding ShowNewerMonthCommand}"
+                      Content="Newer ›" />
+            </Grid>
+            <TextBlock Classes="usage-caption"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{Binding SelectedMonthGroup.SummaryText}" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding SelectedMonthGroup.Entries}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
-                        <Border Classes="usage-card" Margin="0,0,0,8">
+                        <Border Classes="usage-card"
+                                Margin="0,0,0,8"
+                                AutomationProperties.Name="{Binding AccessibilitySummaryText}">
                           <StackPanel Spacing="4">
                     <Grid ColumnDefinitions="*,Auto">
                       <TextBlock Classes="usage-body" Text="{Binding DateRangeText}" />
@@ -118,7 +172,7 @@
                     <ProgressBar Value="{Binding PeakObservedPercent}" Maximum="100" Height="6" />
                     <Grid ColumnDefinitions="*,Auto">
                       <TextBlock Classes="usage-body" Text="{Binding PeakObservedPercent, StringFormat=Peak observed {0:0}%}" />
-                      <TextBlock Grid.Column="1" Classes="usage-caption" Text="{Binding ObservedDayCount, StringFormat=Observed {0} days}" />
+                      <TextBlock Grid.Column="1" Classes="usage-caption" Text="{Binding ObservationSummaryText}" />
                     </Grid>
                             <Grid ColumnDefinitions="*,Auto">
                               <TextBlock Classes="usage-caption" Text="{Binding PlanDisplayText}" />
@@ -128,19 +182,25 @@
                         </Border>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
           </ItemsControl>
           <StackPanel IsVisible="{Binding IsClearConfirmationVisible}" Spacing="6">
             <TextBlock Classes="usage-body" Text="Clear all locally stored history? This cannot be undone." TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Classes="usage-action" Command="{Binding ConfirmClearHistoryCommand}" Content="Clear history" />
-              <Button Classes="usage-action" Command="{Binding CancelClearHistoryCommand}" Content="Cancel" />
+              <Button Classes="usage-action"
+                      AutomationProperties.Name="Confirm clearing usage history"
+                      Command="{Binding ConfirmClearHistoryCommand}"
+                      Content="Clear history" />
+              <Button Classes="usage-action"
+                      AutomationProperties.Name="Cancel clearing usage history"
+                      Command="{Binding CancelClearHistoryCommand}"
+                      Content="Cancel" />
             </StackPanel>
           </StackPanel>
-          <Button Classes="usage-action" HorizontalAlignment="Left" Command="{Binding RequestClearHistoryCommand}" Content="Clear history" />
+          <Button Classes="usage-action"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.Name="Clear locally stored usage history"
+                  Command="{Binding RequestClearHistoryCommand}"
+                  Content="Clear history" />
         </StackPanel>
       </ScrollViewer>
     </TabItem>

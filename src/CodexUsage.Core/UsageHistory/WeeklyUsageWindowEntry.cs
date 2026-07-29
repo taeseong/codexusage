@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CodexUsage.Core.UsageHistory;
 
 /// <summary>Local observations for one server-side weekly limit window. Values are observations, not total usage.</summary>
@@ -36,11 +38,34 @@ public sealed record WeeklyUsageWindowEntry
             var end = ActualResetObservedAt ?? LastObservedAt;
             var start = CalculatedWindowStartedAt ?? FirstObservedAt;
             var duration = end - start;
-            return duration.TotalDays >= 1
-                ? $"Window {Math.Max(1, (int)Math.Floor(duration.TotalDays))} days"
-                : $"Window {Math.Max(1, (int)Math.Ceiling(duration.TotalHours))} hours";
+            if (duration.TotalDays >= 1)
+            {
+                var days = Math.Max(1, (int)Math.Floor(duration.TotalDays));
+                return $"Window {days} {(days == 1 ? "day" : "days")}";
+            }
+
+            var hours = Math.Max(1, (int)Math.Ceiling(duration.TotalHours));
+            return $"Window {hours} {(hours == 1 ? "hour" : "hours")}";
         }
     }
+
+    public string ObservedDaysText =>
+        $"Observed {ObservedDayCount} {(ObservedDayCount == 1 ? "day" : "days")}";
+
+    [JsonIgnore]
+    public bool IsPartialObservation =>
+        ClosureKind is not UsageWindowClosureKind.NormalResetObserved ||
+        ObservedDayCount < ExpectedWindowDayCount;
+
+    [JsonIgnore]
+    public string ObservationSummaryText => IsPartialObservation
+        ? $"{ObservedDaysText} · Partial observation"
+        : ObservedDaysText;
+
+    [JsonIgnore]
+    public string AccessibilitySummaryText =>
+        $"{DateRangeText}, {PlanDisplayText}, Peak observed {PeakObservedPercent:0}%, " +
+        $"{ObservationSummaryText}, {ClosureDisplayText}";
 
     public string DateRangeText
     {
@@ -51,6 +76,21 @@ public sealed record WeeklyUsageWindowEntry
             return start.Date == end.Date
                 ? start.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture)
                 : $"{start.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture)} – {end.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture)}";
+        }
+    }
+
+    private int ExpectedWindowDayCount
+    {
+        get
+        {
+            if (CalculatedWindowStartedAt is not { } start ||
+                InitialScheduledResetAt is not { } reset ||
+                reset <= start)
+            {
+                return 7;
+            }
+
+            return Math.Clamp((int)Math.Ceiling((reset - start).TotalDays), 1, 31);
         }
     }
 }

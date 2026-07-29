@@ -4,7 +4,7 @@
         Title="Codex CLI 설치 필요"
         Icon="avares://CodexUsage/Assets/codex-usage.ico"
         Width="480"
-        Height="360"
+        Height="380"
         MinWidth="440"
         MinHeight="340"
         CanResize="False"
@@ -72,18 +72,26 @@
       <TextBlock Classes="usage-body"
                  FontWeight="SemiBold"
                  TextWrapping="Wrap"
-                 Text="2. CodexUsage를 종료한 뒤 다시 실행해 주세요." />
-      <TextBlock x:Name="CopyStatusText"
+                 Text="2. 아래 다시 확인 버튼을 누르면 앱을 재시작하지 않고 확인합니다." />
+      <TextBlock x:Name="ActionStatusText"
                  Classes="usage-caption"
-                 Foreground="{DynamicResource UsageSuccessBrush}" />
+                 TextWrapping="Wrap" />
     </StackPanel>
 
     <Grid Grid.Row="4"
-          ColumnDefinitions="*,Auto">
+          ColumnDefinitions="*,Auto,Auto"
+          ColumnSpacing="{StaticResource UsageSpace2}">
       <TextBlock Classes="usage-caption"
                  VerticalAlignment="Center"
                  Text="Node.js와 npm이 설치되어 있어야 합니다." />
       <Button Grid.Column="1"
+              x:Name="RetryButton"
+              AutomationProperties.Name="Retry Codex CLI detection"
+              Classes="usage-action"
+              MinWidth="96"
+              Click="OnRetry"
+              Content="다시 확인" />
+      <Button Grid.Column="2"
               Classes="usage-action"
               MinWidth="88"
               Click="OnClose"

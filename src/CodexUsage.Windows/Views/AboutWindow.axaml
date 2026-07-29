@@ -5,9 +5,9 @@
         Title="About CodexUsage"
         Icon="avares://CodexUsage/Assets/codex-usage.ico"
         Width="320"
-        Height="226"
+        Height="286"
         MinWidth="320"
-        MinHeight="226"
+        MinHeight="286"
         CanResize="False"
         ShowInTaskbar="False"
         Background="{DynamicResource UsageSurfaceAppBrush}"
@@ -51,6 +51,17 @@
               HorizontalAlignment="Center"
               Click="OnOpenGitHub"
               Content="github.com/taeseong/codexusage" />
+      <Button x:Name="CopyDiagnosticsButton"
+              AutomationProperties.Name="Copy sanitized diagnostics"
+              Classes="usage-action"
+              HorizontalAlignment="Center"
+              Click="OnCopyDiagnostics"
+              Content="Copy diagnostics" />
+      <TextBlock x:Name="DiagnosticsStatusText"
+                 Classes="usage-caption"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 TextWrapping="Wrap" />
     </StackPanel>
   </Grid>
 </Window>

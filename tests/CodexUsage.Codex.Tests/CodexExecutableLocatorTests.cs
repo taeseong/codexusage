@@ -65,4 +65,23 @@ public sealed class CodexExecutableLocatorTests
         // Then
         Assert.Equal(Path.GetFullPath(applicationCodex), result);
     }
+
+    [Fact]
+    public void Find_ReReadsTheSearchPathForARecentlyInstalledCli()
+    {
+        var searchPath = Path.Combine(Path.GetTempPath(), "codex-before-install");
+        var installedDirectory = Path.Combine(Path.GetTempPath(), "codex-after-install");
+        var executableName = OperatingSystem.IsWindows() ? "codex.cmd" : "codex";
+        var installedExecutable = Path.Combine(installedDirectory, executableName);
+        var locator = new CodexExecutableLocator(
+            () => searchPath,
+            [],
+            path => string.Equals(path, installedExecutable, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Null(locator.Find());
+
+        searchPath = installedDirectory;
+
+        Assert.Equal(Path.GetFullPath(installedExecutable), locator.Find());
+    }
 }

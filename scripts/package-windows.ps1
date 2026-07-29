@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $projectRoot "src\CodexUsage.Windows\CodexUsage.Windows.csproj"
 $publishDirectory = Join-Path $projectRoot "artifacts\publish\$RuntimeIdentifier"
+$buildDirectory = Join-Path $projectRoot "artifacts\build-graph"
 $installerDirectory = Join-Path $projectRoot "artifacts\installer"
 $installerScript = Join-Path $projectRoot "installer\CodexUsage.iss"
 
@@ -31,6 +32,23 @@ if (-not $resolvedPublishDirectory.StartsWith($resolvedPublishRoot + [IO.Path]::
 }
 
 if (Test-Path -LiteralPath $publishDirectory) {
+    $blockingProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        try {
+            $processPath = $_.MainModule.FileName
+            -not [string]::IsNullOrWhiteSpace($processPath) -and
+                [IO.Path]::GetFullPath($processPath).StartsWith(
+                    $resolvedPublishDirectory + [IO.Path]::DirectorySeparatorChar,
+                    [StringComparison]::OrdinalIgnoreCase)
+        }
+        catch {
+            $false
+        }
+    }
+    if ($blockingProcesses) {
+        $blockingProcessList = ($blockingProcesses | ForEach-Object { "$($_.ProcessName) (PID $($_.Id))" }) -join ", "
+        throw "Publish output is in use by: $blockingProcessList. Exit CodexUsage and retry."
+    }
+
     Remove-Item -LiteralPath $publishDirectory -Recurse -Force
 }
 New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
@@ -42,6 +60,8 @@ New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
     -p:PublishSingleFile=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
+    -p:UseArtifactsOutput=true `
+    "-p:ArtifactsPath=$buildDirectory" `
     --disable-build-servers `
     -m:1 `
     -p:UseSharedCompilation=false `
@@ -49,6 +69,9 @@ New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Self-contained publish failed with exit code $LASTEXITCODE."
 }
+
+Get-ChildItem -LiteralPath $publishDirectory -Recurse -File -Filter "*.pdb" |
+    Remove-Item -Force
 
 if ($SkipInstaller) {
     Write-Output $publishDirectory
@@ -85,4 +108,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "Installer compilation failed with exit code $LASTEXITCODE."
 }
 
-Write-Output (Join-Path $installerDirectory "CodexUsage-Setup-$Version-win-x64.exe")
+$installerPath = Join-Path $installerDirectory "CodexUsage-Setup-$Version-win-x64.exe"
+$checksumPath = "$installerPath.sha256"
+$installerHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -LiteralPath $checksumPath -Value "$installerHash  $(Split-Path -Leaf $installerPath)" -Encoding ascii
+
+Write-Output $installerPath
+Write-Output $checksumPath

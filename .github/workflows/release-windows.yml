@@ -1,0 +1,72 @@
+name: Release Windows
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Validate release inputs
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          [xml]$project = Get-Content "src/CodexUsage.Windows/CodexUsage.Windows.csproj"
+          $projectVersion = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          if ($tag -cne "v$projectVersion") {
+            throw "Tag $tag must exactly match project version tag v$projectVersion."
+          }
+          $version = $tag.Substring(1)
+          $notes = "docs/RELEASE_NOTES_$version.md"
+          if (-not (Test-Path -LiteralPath $notes)) {
+            throw "Release notes were not found: $notes"
+          }
+
+      - name: Restore, build, and test
+        shell: pwsh
+        run: |
+          dotnet restore CodexUsage.sln
+          dotnet build CodexUsage.sln --configuration Release --no-restore
+          dotnet test CodexUsage.sln --configuration Release --no-build
+
+      - name: Package Windows x64
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.Substring(1)
+          ./scripts/package-windows.ps1 -Version $version
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag.Substring(1)
+          $installer = "artifacts/installer/CodexUsage-Setup-$version-win-x64.exe"
+          $checksum = "$installer.sha256"
+          $notes = "docs/RELEASE_NOTES_$version.md"
+          gh release create $tag $installer $checksum `
+            --title "CodexUsage $version" `
+            --notes-file $notes `
+            --verify-tag `
+            --draft

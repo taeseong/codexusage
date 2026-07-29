@@ -8,7 +8,7 @@ public sealed class CodexExecutableLocator
 
     public CodexExecutableLocator()
         : this(
-            () => Environment.GetEnvironmentVariable("PATH"),
+            GetCurrentSearchPath,
             GetKnownPaths(),
             File.Exists)
     {
@@ -80,16 +80,45 @@ public sealed class CodexExecutableLocator
 
     private static IReadOnlyList<string> GetKnownPaths()
     {
-        if (!OperatingSystem.IsMacOS())
+        var paths = new List<string>();
+        if (IsForcedNotFoundCapture())
         {
-            return [];
+            return paths;
         }
 
-        var paths = new List<string>
-        {
-            "/Applications/Codex.app/Contents/Resources/codex",
-        };
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (OperatingSystem.IsWindows())
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrWhiteSpace(appData))
+            {
+                paths.Add(Path.Combine(appData, "npm", "codex.cmd"));
+            }
+
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                paths.Add(Path.Combine(localAppData, "Microsoft", "WinGet", "Links", "codex.exe"));
+                paths.Add(Path.Combine(localAppData, "Microsoft", "WindowsApps", "codex.exe"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(userProfile))
+            {
+                paths.Add(Path.Combine(userProfile, ".local", "bin", "codex.exe"));
+            }
+
+            return paths;
+        }
+
+        if (!OperatingSystem.IsMacOS())
+        {
+            return paths;
+        }
+
+        paths.AddRange(
+        [
+            "/Applications/Codex.app/Contents/Resources/codex",
+        ]);
         if (!string.IsNullOrWhiteSpace(userProfile))
         {
             paths.Add(Path.Combine(userProfile, "Applications/Codex.app/Contents/Resources/codex"));
@@ -98,4 +127,47 @@ public sealed class CodexExecutableLocator
 
         return paths;
     }
+
+    private static string? GetCurrentSearchPath()
+    {
+        if (IsForcedNotFoundCapture())
+        {
+            return null;
+        }
+
+        var paths = new List<string?>
+        {
+            Environment.GetEnvironmentVariable("PATH"),
+        };
+        if (OperatingSystem.IsWindows())
+        {
+            paths.Add(TryGetEnvironmentPath(EnvironmentVariableTarget.User));
+            paths.Add(TryGetEnvironmentPath(EnvironmentVariableTarget.Machine));
+        }
+
+        var distinct = paths
+            .Where(static path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return string.Join(Path.PathSeparator, distinct);
+    }
+
+    private static string? TryGetEnvironmentPath(EnvironmentVariableTarget target)
+    {
+        try
+        {
+            return Environment.GetEnvironmentVariable("PATH", target);
+        }
+        catch (Exception exception) when (
+            exception is System.Security.SecurityException or PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsForcedNotFoundCapture() =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_PATH")) &&
+        string.Equals(
+            Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_FORCE_CODEX_NOT_FOUND"),
+            "1",
+            StringComparison.Ordinal);
 }

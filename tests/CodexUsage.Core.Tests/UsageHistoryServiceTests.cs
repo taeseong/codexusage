@@ -91,7 +91,74 @@ public sealed class UsageHistoryServiceTests
         };
 
         Assert.Equal("Plan unavailable", entry.PlanDisplayText);
+        Assert.Equal("Observed 0 days", entry.ObservedDaysText);
     }
+
+    [Fact]
+    public void HistoryDisplayUsesSingularDurationAndObservationLabels()
+    {
+        var at = new DateTimeOffset(2026, 7, 26, 0, 0, 0, TimeSpan.Zero);
+        var entry = new WeeklyUsageWindowEntry
+        {
+            LimitId = "weekly",
+            WindowInstanceId = "window",
+            CalculatedWindowStartedAt = at,
+            FirstObservedAt = at,
+            LastObservedAt = at.AddHours(1),
+            ObservedDayCount = 1,
+        };
+
+        Assert.Equal("Window 1 hour", entry.ObservedPeriodText);
+        Assert.Equal("Observed 1 day", entry.ObservedDaysText);
+    }
+
+    [Fact]
+    public void HistoryDisplay_MarksIncompleteAndNonNormalWindowsAsPartialObservations()
+    {
+        var at = new DateTimeOffset(2026, 7, 26, 0, 0, 0, TimeSpan.Zero);
+        var incompleteNormal = Entry(
+            at,
+            UsageWindowClosureKind.NormalResetObserved,
+            observedDays: 3);
+        var completeNormal = Entry(
+            at,
+            UsageWindowClosureKind.NormalResetObserved,
+            observedDays: 7);
+        var earlyReset = Entry(
+            at,
+            UsageWindowClosureKind.EarlyResetObserved,
+            observedDays: 7);
+
+        Assert.True(incompleteNormal.IsPartialObservation);
+        Assert.Equal(
+            "Observed 3 days · Partial observation",
+            incompleteNormal.ObservationSummaryText);
+        Assert.False(completeNormal.IsPartialObservation);
+        Assert.Equal("Observed 7 days", completeNormal.ObservationSummaryText);
+        Assert.True(earlyReset.IsPartialObservation);
+        Assert.Contains(
+            "Partial observation",
+            earlyReset.AccessibilitySummaryText,
+            StringComparison.Ordinal);
+    }
+
+    private static WeeklyUsageWindowEntry Entry(
+        DateTimeOffset at,
+        UsageWindowClosureKind closure,
+        int observedDays) =>
+        new()
+        {
+            LimitId = "weekly",
+            WindowInstanceId = "window",
+            CalculatedWindowStartedAt = at,
+            InitialScheduledResetAt = at.AddDays(7),
+            FirstObservedAt = at,
+            LastObservedAt = at.AddDays(7),
+            ActualResetObservedAt = at.AddDays(7),
+            ClosureKind = closure,
+            ObservedDayCount = observedDays,
+            PeakObservedPercent = 50,
+        };
 
     private static CodexUsageSnapshot Snapshot(DateTimeOffset at, double used, DateTimeOffset reset, string? plan = "pro") => new()
     {

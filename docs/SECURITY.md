@@ -4,6 +4,20 @@
 
 `usage-history.json` contains only weekly limit IDs, locally generated window IDs, observed percentages, reset timing, and plan labels. It does not contain tokens, email addresses, account IDs, prompts, or Codex conversation content. History remains local and is never sent to an external service.
 
+## Last-known-good usage cache
+
+`usage-cache.json` contains only a format version, retrieval time, normalized plan labels, the short-term or weekly limit kind, observed percentage, window duration, and reset time. Server-supplied limit IDs and display names are replaced with local canonical values. Plan labels that contain anything other than ASCII letters, digits, hyphens, or underscores are discarded.
+
+The cache is local, bounded to two display limits, and is used for at most 24 hours. A limit whose reset time already passed is not restored. Cached values are also hidden when Codex reports that the user is signed out or authentication expired, preventing data from a previous login session from being presented as current. Cache load or save failure never changes a successful live lookup into an error.
+
+History writes are flushed to a temporary file before replacement. An interrupted complete temporary file is recovered locally; malformed files are preserved with a `.corrupt-*` suffix without uploading them.
+
+Windows preferences use the same flushed temporary-file and atomic-replacement policy. Malformed `settings.json` files are preserved for local diagnosis and replaced in memory with safe defaults. The settings payload contains UI preferences, window state, and notification deduplication metadata only; it does not contain Codex credentials or account identifiers.
+
+Copy diagnostics is an explicit local user action. It runs only the discovered Codex executable with `--version`; it does not inspect authentication files. Known user paths are replaced with `%APPDATA%`, `%LOCALAPPDATA%`, or `%USERPROFILE%`, and unknown custom directories are reduced to the executable file name. The copied text excludes usage percentages, plan names, email addresses, account identifiers, tokens, prompts, and conversations.
+
+Release packages exclude PDB symbol files and publish a SHA-256 checksum. Public installers remain unsigned until a code-signing certificate is configured, so Windows may show a SmartScreen warning.
+
 ## 인증정보 취급
 
 Codex Usage는 기존 Codex CLI가 관리하는 로그인 컨텍스트를 App Server를 통해 사용합니다. 인증 파일이나 macOS Keychain을 직접 읽지 않으며 access token, refresh token, 브라우저 쿠키 또는 비밀번호를 저장하지 않습니다.
@@ -22,12 +36,16 @@ macOS UI는 provider의 typed 상태를 고정된 사용자 문구로 변환합�
 
 Windows 위젯과 트레이도 같은 typed 상태와 고정 문구만 사용합니다. Win32 계층은 HWND와 창 스타일만 취급하며 provider 응답, 계정 정보 또는 인증정보를 받지 않습니다. 트레이 툴팁은 사용률 요약만 포함하고 이메일이나 원문 App Server 오류를 표시하지 않습니다.
 
+오류 카드의 복구 버튼은 typed 상태만 사용합니다. 설치 안내는 공식 CLI 설치 명령을 표시하고, 로그인 확인과 일반 재시도는 기존 App Server provider를 다시 호출할 뿐 토큰 파일을 열거나 로그인 자격 증명을 수집하지 않습니다.
+
+손상된 `settings.json`은 `.corrupt-*` 파일로 로컬에 보존하고 안전한 기본값을 사용합니다. 파일을 읽지 못했거나 손상 파일 보존에 실패한 경우에는 명시적인 Settings Save 전까지 자동 쓰기를 중지해 기존 파일 덮어쓰기를 방지합니다. 이 복구 게이트가 활성화된 동안에는 기존 Windows 시작 프로그램 등록을 읽어 화면에만 반영하고 추가·수정·삭제하지 않습니다. 설정 화면의 기본값 복원은 자동 시작과 알림 설정만 저장 전 상태로 변경하며 사용량 이력, 캐시, 창 위치 또는 Codex 인증정보를 삭제하거나 읽지 않습니다.
+
 Codex CLI 미설치 안내는 고정된 공식 npm 명령을 화면에 표시하고 사용자가 요청할 때 클립보드에 복사할 뿐입니다. 앱이 설치 명령을 자동 실행하거나 관리자 권한을 요청하지 않으며, 설치 이후에도 기존 Codex 로그인 컨텍스트만 사용합니다.
 
 ## 프로세스 보안
 
-- 실행 인자는 고정된 `app-server --stdio`이며 민감정보를 명령행에 넣지 않습니다.
-- shell을 거치지 않고 `ProcessStartInfo.ArgumentList`를 사용합니다.
+- 실행 인자는 고정된 `app-server --stdio` 또는 명시적 진단의 `--version`이며 민감정보를 명령행에 넣지 않습니다.
+- 네이티브 실행 파일은 직접 시작합니다. Windows npm의 `.cmd` shim만 `cmd.exe /d /c`와 `ProcessStartInfo.ArgumentList`로 실행하며 PowerShell과 사용자 입력 문자열은 사용하지 않습니다.
 - stdin/stdout/stderr를 비동기로 처리합니다.
 - 요청별 timeout과 cancellation을 지원합니다.
 - 종료 시 Codex Usage가 직접 시작한 App Server만 정리합니다.

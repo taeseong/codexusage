@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,12 +9,19 @@ namespace CodexUsage.Desktop.ViewModels;
 
 public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
 {
+    private static readonly TimeSpan MaximumCacheAge = TimeSpan.FromHours(24);
+    private static readonly TimeSpan MinimumCacheWriteInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan MaximumCacheWriteInterval = TimeSpan.FromMinutes(15);
     private readonly ICodexUsageProvider _provider;
+    private readonly IUsageSnapshotCache? _snapshotCache;
     private readonly TimeProvider _timeProvider;
-    private readonly TimeSpan _refreshInterval;
+    private readonly UsageRefreshSchedule _refreshSchedule;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private readonly SemaphoreSlim _refreshSignal = new(0, 1);
     private readonly CancellationTokenSource _stopping = new();
     private readonly AsyncRelayCommand _refreshCommand;
+    private readonly AsyncRelayCommand _recoveryActionCommand;
+    private Action? _codexInstallGuidanceRequested;
     private Task? _refreshLoop;
     private string _statusTitle = "Checking usage";
     private string _statusDetail = "Loading limits for the current Codex account.";
@@ -25,17 +33,28 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
     private bool _isCodexNotInstalled;
     private bool _isBusy;
     private bool _hasRefreshed;
+    private CodexUsageStatus? _lastStatus;
+    private CodexUsageSnapshot? _lastCachedSnapshot;
+    private DateTimeOffset? _lastCacheWriteAttemptAt;
+    private int _consecutiveTransientFailures;
+    private bool _cacheLoadAttempted;
     private int _disposeStarted;
 
     public UsageViewModel(
         ICodexUsageProvider provider,
         TimeProvider? timeProvider = null,
-        TimeSpan? refreshInterval = null)
+        TimeSpan? refreshInterval = null,
+        IUsageSnapshotCache? snapshotCache = null,
+        UsageRefreshSchedule? refreshSchedule = null)
     {
         _provider = provider;
+        _snapshotCache = snapshotCache;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _refreshInterval = refreshInterval ?? TimeSpan.FromSeconds(60);
+        _refreshSchedule = refreshSchedule ?? new UsageRefreshSchedule(refreshInterval);
         _refreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy);
+        _recoveryActionCommand = new AsyncRelayCommand(
+            ExecuteRecoveryActionAsync,
+            () => !IsBusy && HasRecoveryAction);
     }
 
     public UsageLimitItemViewModel ShortTerm { get; } = new("5-hour");
@@ -46,7 +65,23 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
 
     public event Action<CodexUsageSnapshot>? SnapshotRefreshed;
 
+    public event Action? CodexInstallGuidanceRequested
+    {
+        add
+        {
+            _codexInstallGuidanceRequested += value;
+            NotifyRecoveryActionStateChanged();
+        }
+        remove
+        {
+            _codexInstallGuidanceRequested -= value;
+            NotifyRecoveryActionStateChanged();
+        }
+    }
+
     public ICommand RefreshCommand => _refreshCommand;
+
+    public IAsyncRelayCommand RecoveryActionCommand => _recoveryActionCommand;
 
     public string StatusTitle
     {
@@ -75,7 +110,13 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
     public bool HasNotice
     {
         get => _hasNotice;
-        private set => SetProperty(ref _hasNotice, value);
+        private set
+        {
+            if (SetProperty(ref _hasNotice, value))
+            {
+                NotifyRecoveryActionStateChanged();
+            }
+        }
     }
 
     public bool IsShowingStaleData
@@ -104,6 +145,7 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
             if (SetProperty(ref _isBusy, value))
             {
                 _refreshCommand.NotifyCanExecuteChanged();
+                _recoveryActionCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -113,6 +155,33 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
         get => _hasRefreshed;
         private set => SetProperty(ref _hasRefreshed, value);
     }
+
+    public CodexUsageStatus? LastStatus
+    {
+        get => _lastStatus;
+        private set
+        {
+            if (SetProperty(ref _lastStatus, value))
+            {
+                NotifyRecoveryActionStateChanged();
+            }
+        }
+    }
+
+    public bool HasRecoveryAction =>
+        HasNotice &&
+        LastStatus is not null &&
+        (LastStatus is not CodexUsageStatus.CodexNotInstalled ||
+         _codexInstallGuidanceRequested is not null);
+
+    public string RecoveryActionText => LastStatus switch
+    {
+        CodexUsageStatus.CodexNotInstalled => "Install Codex CLI",
+        CodexUsageStatus.NotAuthenticated or CodexUsageStatus.AuthenticationExpired =>
+            "Check sign-in again",
+        CodexUsageStatus.UsageUnsupported => "Retry after updating",
+        _ => "Retry now",
+    };
 
     public string MenuSummary
     {
@@ -136,10 +205,30 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
 
     public async Task StartAsync()
     {
+        await RestoreCachedSnapshotAsync().ConfigureAwait(true);
         await RefreshAsync().ConfigureAwait(true);
         if (Volatile.Read(ref _disposeStarted) == 0)
         {
             _refreshLoop ??= RunRefreshLoopAsync(_stopping.Token);
+        }
+    }
+
+    public void RequestImmediateRefresh()
+    {
+        if (Volatile.Read(ref _disposeStarted) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _refreshSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 
@@ -162,12 +251,19 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
                 return;
             }
 
+            LastStatus = result.Status;
             if (result is { Status: CodexUsageStatus.Success, Snapshot: not null })
             {
                 ApplySnapshot(result.Snapshot);
+                _consecutiveTransientFailures = 0;
+                await TryPersistSnapshotAsync(result.Snapshot, _stopping.Token)
+                    .ConfigureAwait(true);
             }
             else
             {
+                _consecutiveTransientFailures = UsageRefreshSchedule.IsTransient(result.Status)
+                    ? _consecutiveTransientFailures + 1
+                    : 0;
                 ApplyFailure(result.Status);
             }
 
@@ -203,10 +299,11 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
         await _refreshLock.WaitAsync().ConfigureAwait(false);
         _refreshLock.Release();
         _stopping.Dispose();
+        _refreshSignal.Dispose();
         _refreshLock.Dispose();
     }
 
-    private void ApplySnapshot(CodexUsageSnapshot snapshot)
+    private void ApplySnapshot(CodexUsageSnapshot snapshot, bool isCached = false)
     {
         var now = _timeProvider.GetUtcNow();
         ShortTerm.Update(snapshot.Limits.FirstOrDefault(static limit => limit.Kind is UsageLimitKind.ShortTerm), now);
@@ -217,13 +314,24 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
         AccountPlanText = string.IsNullOrWhiteSpace(displayedPlan)
             ? "Plan unavailable"
             : displayedPlan.ToUpperInvariant();
-        LastUpdatedText = $"Last updated {snapshot.RetrievedAt.ToLocalTime():HH:mm:ss}";
-        HasNotice = false;
-        IsShowingStaleData = false;
-        IsWarningNotice = false;
+        LastUpdatedText = isCached
+            ? $"Last successful {snapshot.RetrievedAt.ToLocalTime():MMM d HH:mm}"
+            : $"Last updated {snapshot.RetrievedAt.ToLocalTime():HH:mm:ss}";
+        HasNotice = isCached;
+        IsShowingStaleData = isCached;
+        IsWarningNotice = isCached;
+        if (isCached)
+        {
+            StatusTitle = "Showing previous usage";
+            StatusDetail = "Refreshing live usage. Cached values may be out of date.";
+        }
+
         OnPropertyChanged(nameof(MenuSummary));
         OnPropertyChanged(nameof(TrayToolTip));
-        SnapshotRefreshed?.Invoke(snapshot);
+        if (!isCached)
+        {
+            SnapshotRefreshed?.Invoke(snapshot);
+        }
     }
 
     private void ApplyFailure(CodexUsageStatus status)
@@ -242,7 +350,11 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
             _ => ("Unable to load usage", "Codex Usage will retry automatically."),
         };
 
-        IsShowingStaleData = ShortTerm.ShowProgress || Weekly.ShowProgress;
+        var hasPreviousData = ShortTerm.ShowProgress || Weekly.ShowProgress;
+        var canShowPreviousData = status is not (
+            CodexUsageStatus.NotAuthenticated or
+            CodexUsageStatus.AuthenticationExpired);
+        IsShowingStaleData = hasPreviousData && canShowPreviousData;
         IsWarningNotice = IsShowingStaleData;
         if (IsShowingStaleData)
         {
@@ -268,18 +380,226 @@ public sealed class UsageViewModel : ObservableObject, IAsyncDisposable
         OnPropertyChanged(nameof(TrayToolTip));
     }
 
+    private async Task ExecuteRecoveryActionAsync()
+    {
+        if (LastStatus is CodexUsageStatus.CodexNotInstalled)
+        {
+            _codexInstallGuidanceRequested?.Invoke();
+            return;
+        }
+
+        await RefreshAsync().ConfigureAwait(true);
+    }
+
+    private void NotifyRecoveryActionStateChanged()
+    {
+        OnPropertyChanged(nameof(HasRecoveryAction));
+        OnPropertyChanged(nameof(RecoveryActionText));
+        _recoveryActionCommand.NotifyCanExecuteChanged();
+    }
+
     private async Task RunRefreshLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(_refreshInterval, _timeProvider);
         try
         {
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(true))
+            while (!cancellationToken.IsCancellationRequested)
             {
+                var delay = _refreshSchedule.GetNextDelay(
+                    LastStatus,
+                    _consecutiveTransientFailures);
+                await WaitForDelayOrSignalAsync(delay, cancellationToken).ConfigureAwait(true);
                 await RefreshAsync().ConfigureAwait(true);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    private async Task RestoreCachedSnapshotAsync()
+    {
+        if (_cacheLoadAttempted || _snapshotCache is null || HasRefreshed)
+        {
+            return;
+        }
+
+        _cacheLoadAttempted = true;
+        try
+        {
+            var cached = await _snapshotCache.LoadAsync(_stopping.Token).ConfigureAwait(true);
+            var usable = GetUsableCachedSnapshot(cached);
+            if (usable is null)
+            {
+                return;
+            }
+
+            _lastCachedSnapshot = usable;
+            ApplySnapshot(usable, isCached: true);
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning(
+                "Usage cache restore failed: {0}",
+                exception.GetType().Name);
+        }
+    }
+
+    private CodexUsageSnapshot? GetUsableCachedSnapshot(CodexUsageSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var age = now - snapshot.RetrievedAt;
+        if (age < TimeSpan.FromMinutes(-5) || age > MaximumCacheAge)
+        {
+            return null;
+        }
+
+        var limits = snapshot.Limits
+            .Where(limit =>
+                (limit.Kind is UsageLimitKind.ShortTerm or UsageLimitKind.Weekly) &&
+                (limit.ResetsAt is null || limit.ResetsAt > now))
+            .ToArray();
+        return limits.Length == 0
+            ? null
+            : snapshot with { Limits = limits };
+    }
+
+    private async Task TryPersistSnapshotAsync(
+        CodexUsageSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (_snapshotCache is null || !ShouldPersistSnapshot(snapshot))
+        {
+            return;
+        }
+
+        _lastCacheWriteAttemptAt = _timeProvider.GetUtcNow();
+        try
+        {
+            await _snapshotCache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(true);
+            _lastCachedSnapshot = snapshot;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning(
+                "Usage cache persistence failed: {0}",
+                exception.GetType().Name);
+        }
+    }
+
+    private bool ShouldPersistSnapshot(CodexUsageSnapshot snapshot)
+    {
+        if (_lastCachedSnapshot is null)
+        {
+            return true;
+        }
+
+        if (HasCacheStructureChanged(_lastCachedSnapshot, snapshot))
+        {
+            return true;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        if (_lastCacheWriteAttemptAt is { } lastAttempt &&
+            now - lastAttempt < MinimumCacheWriteInterval)
+        {
+            return false;
+        }
+
+        return HaveUsageValuesChanged(_lastCachedSnapshot, snapshot) ||
+               snapshot.RetrievedAt - _lastCachedSnapshot.RetrievedAt >=
+               MaximumCacheWriteInterval;
+    }
+
+    private static bool HasCacheStructureChanged(
+        CodexUsageSnapshot previous,
+        CodexUsageSnapshot current)
+    {
+        if (!string.Equals(previous.AccountPlan, current.AccountPlan, StringComparison.Ordinal) ||
+            !string.Equals(previous.RateLimitPlan, current.RateLimitPlan, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var previousLimits = GetCacheableLimits(previous);
+        var currentLimits = GetCacheableLimits(current);
+        if (previousLimits.Count != currentLimits.Count)
+        {
+            return true;
+        }
+
+        foreach (var (kind, previousLimit) in previousLimits)
+        {
+            if (!currentLimits.TryGetValue(kind, out var currentLimit) ||
+                previousLimit.WindowDuration != currentLimit.WindowDuration ||
+                HasMeaningfulResetChange(previousLimit.ResetsAt, currentLimit.ResetsAt))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HaveUsageValuesChanged(
+        CodexUsageSnapshot previous,
+        CodexUsageSnapshot current)
+    {
+        var previousLimits = GetCacheableLimits(previous);
+        var currentLimits = GetCacheableLimits(current);
+        return previousLimits.Any(pair =>
+            currentLimits.TryGetValue(pair.Key, out var currentLimit) &&
+            Math.Abs(pair.Value.UsedPercent - currentLimit.UsedPercent) > 0.001d);
+    }
+
+    private static IReadOnlyDictionary<UsageLimitKind, UsageLimit> GetCacheableLimits(
+        CodexUsageSnapshot snapshot) =>
+        snapshot.Limits
+            .Where(static limit =>
+                limit.Kind is UsageLimitKind.ShortTerm or UsageLimitKind.Weekly)
+            .GroupBy(static limit => limit.Kind)
+            .ToDictionary(static group => group.Key, static group => group.First());
+
+    private static bool HasMeaningfulResetChange(
+        DateTimeOffset? previous,
+        DateTimeOffset? current)
+    {
+        if (previous is null || current is null)
+        {
+            return previous != current;
+        }
+
+        return (previous.Value - current.Value).Duration() >= TimeSpan.FromMinutes(5);
+    }
+
+    private async Task WaitForDelayOrSignalAsync(
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var delayTask = Task.Delay(delay, _timeProvider, waiting.Token);
+        var signalTask = _refreshSignal.WaitAsync(waiting.Token);
+        await Task.WhenAny(delayTask, signalTask).ConfigureAwait(true);
+        waiting.Cancel();
+
+        try
+        {
+            await Task.WhenAll(delayTask, signalTask).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
     }
 }

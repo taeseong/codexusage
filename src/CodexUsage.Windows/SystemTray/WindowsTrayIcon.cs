@@ -36,6 +36,8 @@ internal sealed class WindowsTrayIcon : IDisposable
             RefreshRequested?.Invoke(this, EventArgs.Empty));
         var detailsItem = CreateMenuItem("Open details", (_, _) =>
             DetailsRequested?.Invoke(this, EventArgs.Empty));
+        var settingsItem = CreateMenuItem("Settings", (_, _) =>
+            SettingsRequested?.Invoke(this, EventArgs.Empty));
         var aboutItem = CreateMenuItem("About CodexUsage", (_, _) =>
             AboutRequested?.Invoke(this, EventArgs.Empty));
         var quitItem = CreateMenuItem("Quit", (_, _) =>
@@ -60,6 +62,7 @@ internal sealed class WindowsTrayIcon : IDisposable
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(refreshItem);
         _menu.Items.Add(detailsItem);
+        _menu.Items.Add(settingsItem);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(aboutItem);
         _menu.Items.Add(new ToolStripSeparator());
@@ -77,6 +80,7 @@ internal sealed class WindowsTrayIcon : IDisposable
             Visible = true,
         };
         _trayIcon.MouseUp += OnTrayIconMouseUp;
+        _trayIcon.BalloonTipClicked += OnBalloonTipClicked;
         _interactionState.PropertyChanged += OnInteractionStatePropertyChanged;
         UpdateHeaders();
     }
@@ -93,7 +97,11 @@ internal sealed class WindowsTrayIcon : IDisposable
 
     public event EventHandler? DetailsRequested;
 
+    public event EventHandler? SettingsRequested;
+
     public event EventHandler? AboutRequested;
+
+    public event EventHandler? NotificationActivated;
 
     public event EventHandler? QuitRequested;
 
@@ -127,6 +135,16 @@ internal sealed class WindowsTrayIcon : IDisposable
         _trayIcon.ShowBalloonTip(8_000, title, message, ToolTipIcon.Warning);
     }
 
+    public void ShowTestNotification()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _trayIcon.ShowBalloonTip(
+            8_000,
+            "CodexUsage test notification",
+            "Windows notifications are available for CodexUsage.",
+            ToolTipIcon.Info);
+    }
+
     internal void ShowMenuAt(Point screenPosition)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -158,6 +176,7 @@ internal sealed class WindowsTrayIcon : IDisposable
         _disposed = true;
         _interactionState.PropertyChanged -= OnInteractionStatePropertyChanged;
         _trayIcon.MouseUp -= OnTrayIconMouseUp;
+        _trayIcon.BalloonTipClicked -= OnBalloonTipClicked;
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
         _menu.Dispose();
@@ -184,6 +203,9 @@ internal sealed class WindowsTrayIcon : IDisposable
             VisibilityToggleRequested?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    private void OnBalloonTipClicked(object? sender, EventArgs eventArgs) =>
+        NotificationActivated?.Invoke(this, EventArgs.Empty);
 
     private void OnInteractionStatePropertyChanged(
         object? sender,

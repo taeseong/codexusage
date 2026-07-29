@@ -46,5 +46,20 @@
     <Content Include="../../src/CodexUsage.Windows/SystemTray/WindowsTrayIcon.cs"
              Link="TestAssets/WindowsTrayIcon.cs"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/package-windows.ps1"
+             Link="TestAssets/package-windows.ps1"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/qa-windows-runtime.ps1"
+             Link="TestAssets/qa-windows-runtime.ps1"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Windows/CodexUsage.Windows.csproj"
+             Link="TestAssets/CodexUsage.Windows.csproj"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../.github/workflows/release-windows.yml"
+             Link="TestAssets/release-windows.yml"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Windows/Views/SettingsWindow.axaml"
+             Link="TestAssets/SettingsWindow.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,17 +1,45 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using CodexUsage.Desktop.ViewModels;
 
 namespace CodexUsage.Desktop.Views;
 
 public partial class UsageWindow : Window
 {
+    private UsageWindowRestoreState? _pendingRestoreState;
+
     public UsageWindow()
     {
         InitializeComponent();
+        DetailsTabs.SelectionChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public bool AllowClose { get; set; }
+
+    public bool HasBeenOpened { get; private set; }
+
+    public event EventHandler? StateChanged;
+
+    public UsageWindowRestoreState CaptureRestoreState() =>
+        new(
+            Position.X,
+            Position.Y,
+            Width,
+            Height,
+            DetailsTabs.SelectedIndex);
+
+    public void RestoreState(UsageWindowRestoreState state)
+    {
+        _pendingRestoreState = state;
+        Width = Math.Max(MinWidth, state.Width);
+        Height = Math.Max(MinHeight, state.Height);
+        DetailsTabs.SelectedIndex = state.SelectedTabIndex is 1 ? 1 : 0;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+    }
+
+    public void SelectHistoryTab() => DetailsTabs.SelectedIndex = 1;
 
     public void SaveRenderedContent(string path)
     {
@@ -23,6 +51,7 @@ public partial class UsageWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
+        StateChanged?.Invoke(this, EventArgs.Empty);
         if (!AllowClose)
         {
             e.Cancel = true;
@@ -31,4 +60,63 @@ public partial class UsageWindow : Window
 
         base.OnClosing(e);
     }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            switch (e.Key)
+            {
+                case Key.R when DataContext is UsageViewModel viewModel &&
+                                     viewModel.RefreshCommand.CanExecute(null):
+                    viewModel.RefreshCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+                case Key.D1 or Key.NumPad1:
+                    DetailsTabs.SelectedIndex = 0;
+                    e.Handled = true;
+                    break;
+                case Key.D2 or Key.NumPad2:
+                    DetailsTabs.SelectedIndex = 1;
+                    e.Handled = true;
+                    break;
+            }
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        HasBeenOpened = true;
+        if (_pendingRestoreState is not { X: { } x, Y: { } y } state)
+        {
+            return;
+        }
+
+        var requested = new PixelPoint(x, y);
+        var screen = Screens.ScreenFromPoint(requested) ?? Screens.Primary;
+        if (screen is null)
+        {
+            return;
+        }
+
+        var workingArea = screen.WorkingArea;
+        var scaling = screen.Scaling;
+        Width = Math.Min(Width, workingArea.Width / scaling);
+        Height = Math.Min(Height, workingArea.Height / scaling);
+        var pixelWidth = (int)Math.Ceiling(Width * scaling);
+        var pixelHeight = (int)Math.Ceiling(Height * scaling);
+        Position = new PixelPoint(
+            Math.Clamp(requested.X, workingArea.X, Math.Max(workingArea.X, workingArea.Right - pixelWidth)),
+            Math.Clamp(requested.Y, workingArea.Y, Math.Max(workingArea.Y, workingArea.Bottom - pixelHeight)));
+    }
 }
+
+public sealed record UsageWindowRestoreState(
+    int? X,
+    int? Y,
+    double Width,
+    double Height,
+    int SelectedTabIndex);

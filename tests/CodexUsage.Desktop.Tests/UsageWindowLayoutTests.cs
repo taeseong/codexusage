@@ -107,12 +107,107 @@ public sealed class UsageWindowLayoutTests
 
         Assert.Contains(
             window.Descendants(avalonia + "ItemsControl"),
-            element => (string?)element.Attribute("ItemsSource") == "{Binding MonthlyGroups}");
+            element => (string?)element.Attribute("ItemsSource") == "{Binding SelectedMonthGroup.Entries}");
         Assert.Contains(
-            window.Descendants(avalonia + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding MonthDisplayText}");
+            window.Descendants(avalonia + "ComboBox"),
+            element =>
+                (string?)element.Attribute("ItemsSource") == "{Binding MonthlyGroups}" &&
+                (string?)element.Attribute("SelectedItem") == "{Binding SelectedMonthGroup, Mode=TwoWay}");
         Assert.Contains(
             window.Descendants(avalonia + "TextBlock"),
             element => (string?)element.Attribute("Text") == "{Binding DateRangeText}");
+    }
+
+    [Fact]
+    public void DetailWindow_PersistsNamedTabsAndProvidesHistoryRecovery()
+    {
+        var window = XDocument
+            .Load(Path.Combine(AppContext.BaseDirectory, "TestAssets", "UsageWindow.axaml"))
+            .Root!;
+        XNamespace avalonia = "https://github.com/avaloniaui";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        Assert.Contains(
+            window.Descendants(avalonia + "TabControl"),
+            element => (string?)element.Attribute(x + "Name") == "DetailsTabs");
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element => (string?)element.Attribute("Content") == "Retry history");
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element => (string?)element.Attribute("Content") == "‹ Older");
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element => (string?)element.Attribute("Content") == "Newer ›");
+    }
+    [Fact]
+    public void History_ShowsComparableMetricsInMutuallyExclusiveStates()
+    {
+        var window = XDocument
+            .Load(Path.Combine(AppContext.BaseDirectory, "TestAssets", "UsageWindow.axaml"))
+            .Root!;
+        XNamespace avalonia = "https://github.com/avaloniaui";
+
+        var metrics = window
+            .Descendants(avalonia + "TextBlock")
+            .Where(element => (string?)element.Attribute("Text") == "{Binding MetricsText}")
+            .ToArray();
+
+        Assert.Equal(2, metrics.Length);
+        Assert.Contains(
+            metrics,
+            element => (string?)element.Attribute("IsVisible")
+                == "{Binding HasInsufficientComparableHistory}");
+        Assert.Contains(
+            metrics,
+            element => (string?)element.Parent?.Attribute("IsVisible")
+                == "{Binding HasComparableHistory}");
+    }
+
+    [Fact]
+    public void DetailWindow_ExposesRecoveryAndAccessibleControlNames()
+    {
+        var window = XDocument
+            .Load(Path.Combine(AppContext.BaseDirectory, "TestAssets", "UsageWindow.axaml"))
+            .Root!;
+        XNamespace avalonia = "https://github.com/avaloniaui";
+
+        Assert.Equal(
+            "CodexUsage details",
+            (string?)window.Attribute("AutomationProperties.Name"));
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element =>
+                (string?)element.Attribute("Content") == "{Binding RecoveryActionText}" &&
+                (string?)element.Attribute("Command") == "{Binding RecoveryActionCommand}" &&
+                (string?)element.Attribute("IsVisible") == "{Binding HasRecoveryAction}");
+        Assert.Contains(
+            window.Descendants(avalonia + "TabItem"),
+            element => (string?)element.Attribute("AutomationProperties.Name")
+                == "Current usage");
+        Assert.Contains(
+            window.Descendants(avalonia + "TabItem"),
+            element => (string?)element.Attribute("AutomationProperties.Name")
+                == "Weekly usage history");
+        Assert.Contains(
+            window.Descendants(avalonia + "Border"),
+            element => (string?)element.Attribute("AutomationProperties.Name")
+                == "{Binding AccessibilitySummaryText}");
+        Assert.Contains(
+            window.Descendants(avalonia + "TextBlock"),
+            element => (string?)element.Attribute("Text")
+                == "{Binding ObservationSummaryText}");
+    }
+
+    [Fact]
+    public void DetailWindow_ProvidesKeyboardShortcutsForRefreshAndTabs()
+    {
+        var source = File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "TestAssets", "UsageWindow.axaml.cs"));
+
+        Assert.Contains("case Key.R", source, StringComparison.Ordinal);
+        Assert.Contains("case Key.D1 or Key.NumPad1", source, StringComparison.Ordinal);
+        Assert.Contains("case Key.D2 or Key.NumPad2", source, StringComparison.Ordinal);
+        Assert.Contains("RefreshCommand.Execute(null)", source, StringComparison.Ordinal);
     }
 }

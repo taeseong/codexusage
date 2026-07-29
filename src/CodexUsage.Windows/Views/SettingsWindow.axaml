@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:CodexUsage.Windows.ViewModels"
+        x:Class="CodexUsage.Windows.Views.SettingsWindow"
+        x:DataType="vm:WindowsSettingsViewModel"
+        Title="CodexUsage Settings"
+        Width="460"
+        Height="720"
+        MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource UsageSurfaceAppBrush}">
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0">
+      <StackPanel Margin="24,24,24,8" Spacing="12">
+      <StackPanel Spacing="4">
+        <TextBlock Classes="usage-title" Text="Settings" />
+        <TextBlock Classes="usage-caption" Text="Windows and usage alert preferences" />
+      </StackPanel>
+
+      <Border Classes="usage-card usage-notice warning"
+              AutomationProperties.Name="Settings recovery notice"
+              IsVisible="{Binding HasRecoveryNotice}">
+        <TextBlock Classes="usage-body"
+                   Foreground="{DynamicResource UsageWarningBrush}"
+                   Text="{Binding RecoveryNotice}"
+                   TextWrapping="Wrap" />
+      </Border>
+
+      <Border Classes="usage-card">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="usage-section" Text="General" />
+          <CheckBox AutomationProperties.Name="Run CodexUsage at Windows sign-in"
+                    IsChecked="{Binding StartAtLogin}"
+                    Content="Run CodexUsage at Windows sign-in" />
+          <Grid Margin="24,-4,0,0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBlock Classes="usage-caption"
+                       VerticalAlignment="Center"
+                       Text="{Binding StartupStatusText}"
+                       TextWrapping="Wrap" />
+            <Button Grid.Column="1"
+                    AutomationProperties.Name="Repair Windows startup registration"
+                    Classes="usage-action"
+                    IsVisible="{Binding CanRepairStartup}"
+                    Command="{Binding RepairStartupCommand}"
+                    Content="Repair" />
+          </Grid>
+          <CheckBox AutomationProperties.Name="Show usage alerts"
+                    IsChecked="{Binding UsageAlertsEnabled}"
+                    Content="Show usage alerts" />
+          <StackPanel Margin="24,0,0,0" Orientation="Horizontal" Spacing="18">
+            <CheckBox IsChecked="{Binding ShortTermAlertsEnabled}" Content="5-hour" />
+            <CheckBox IsChecked="{Binding WeeklyAlertsEnabled}" Content="Weekly" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="usage-card">
+        <StackPanel Spacing="12">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBlock Classes="usage-section"
+                       VerticalAlignment="Center"
+                       Text="Notifications" />
+            <Button Grid.Column="1"
+                    AutomationProperties.Name="Send test notification"
+                    Classes="usage-action"
+                    Command="{Binding TestNotificationCommand}"
+                    Content="Test notification" />
+          </Grid>
+          <TextBlock Foreground="{DynamicResource UsageErrorBrush}"
+                     IsVisible="{Binding HasValidationError}"
+                     Text="{Binding ValidationMessage}"
+                     TextWrapping="Wrap" />
+          <TextBlock Foreground="{DynamicResource UsageSuccessBrush}"
+                     IsVisible="{Binding HasFeedback}"
+                     Text="{Binding FeedbackMessage}"
+                     TextWrapping="Wrap" />
+
+          <Grid ColumnDefinitions="*,100" RowDefinitions="Auto,Auto" RowSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="Warning threshold" />
+            <NumericUpDown Grid.Column="1"
+                           AutomationProperties.Name="Warning threshold percent"
+                           Minimum="1"
+                           Maximum="99"
+                           Increment="1"
+                           FormatString="0'%'"
+                           Value="{Binding WarningThresholdPercent}" />
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Critical threshold" />
+            <NumericUpDown Grid.Row="1"
+                           Grid.Column="1"
+                           AutomationProperties.Name="Critical threshold percent"
+                           Minimum="2"
+                           Maximum="100"
+                           Increment="1"
+                           FormatString="0'%'"
+                           Value="{Binding CriticalThresholdPercent}" />
+          </Grid>
+
+          <Border BorderBrush="{DynamicResource UsageBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+            <StackPanel Spacing="8">
+              <CheckBox IsChecked="{Binding ResetReminderEnabled}" Content="Notify before a limit resets" />
+              <Grid ColumnDefinitions="*,100">
+                <TextBlock VerticalAlignment="Center" Text="Minutes before reset" />
+                <NumericUpDown Grid.Column="1"
+                               AutomationProperties.Name="Minutes before reset"
+                               Minimum="5"
+                               Maximum="240"
+                               Increment="5"
+                               FormatString="0 'min'"
+                               Value="{Binding ResetReminderMinutes}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border BorderBrush="{DynamicResource UsageBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+            <StackPanel Spacing="8">
+              <CheckBox IsChecked="{Binding QuietHoursEnabled}" Content="Quiet hours" />
+              <Grid ColumnDefinitions="*,120,Auto,120" ColumnSpacing="8">
+                <TextBlock VerticalAlignment="Center" Text="Local time" />
+                <NumericUpDown Grid.Column="1"
+                               AutomationProperties.Name="Quiet hours start"
+                               Minimum="0"
+                               Maximum="23"
+                               Increment="1"
+                               Value="{Binding QuietHoursStart}" />
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="to" />
+                <NumericUpDown Grid.Column="3"
+                               AutomationProperties.Name="Quiet hours end"
+                               Minimum="0"
+                               Maximum="23"
+                               Increment="1"
+                               Value="{Binding QuietHoursEnd}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </Border>
+
+      <Border Classes="usage-card">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel>
+            <TextBlock Classes="usage-section" Text="Usage history" />
+            <TextBlock Classes="usage-caption" Text="Review or clear locally stored history" />
+          </StackPanel>
+          <Button Grid.Column="1"
+                  Classes="usage-action"
+                  Command="{Binding ManageHistoryCommand}"
+                  Content="Manage" />
+        </Grid>
+      </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Row="1"
+          Margin="24,8,24,20"
+          ColumnDefinitions="*,Auto,Auto"
+          ColumnSpacing="8">
+      <Button Grid.Column="0"
+              HorizontalAlignment="Left"
+              AutomationProperties.Name="Restore startup and notification defaults"
+              AutomationProperties.HelpText="History and window placement are kept"
+              ToolTip.Tip="Restores startup and notification defaults. History and window placement are kept."
+              Classes="usage-action"
+              Command="{Binding RestoreDefaultsCommand}"
+              Content="Restore defaults" />
+      <Button Grid.Column="1"
+              AutomationProperties.Name="Cancel settings changes"
+              Classes="usage-action"
+              Command="{Binding CancelCommand}"
+              Content="Cancel" />
+      <Button Grid.Column="2"
+              AutomationProperties.Name="Save settings"
+              Classes="usage-action"
+              Command="{Binding SaveCommand}"
+              Content="Save" />
+    </Grid>
+  </Grid>
+</Window>

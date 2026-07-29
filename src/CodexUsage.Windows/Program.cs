@@ -11,7 +11,7 @@ internal static class Program
     {
         using var instanceMutex = new Mutex(
             initiallyOwned: true,
-            SingleInstanceMutexName,
+            GetMutexName(),
             out var ownsInitialInstance);
 
         if (!ownsInitialInstance)
@@ -26,4 +26,9 @@ internal static class Program
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .LogToTrace();
+
+    private static string GetMutexName() =>
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_PATH"))
+            ? SingleInstanceMutexName
+            : $"{SingleInstanceMutexName}.Capture.{Environment.ProcessId}";
 }

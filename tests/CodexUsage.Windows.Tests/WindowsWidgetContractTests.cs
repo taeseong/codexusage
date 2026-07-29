@@ -123,10 +123,23 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("GetPositionRestorePoint", source, StringComparison.Ordinal);
         Assert.Contains("DetailsRequested", source, StringComparison.Ordinal);
         Assert.Contains("QuitRequested", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "thresholdsChanged || preferences.ResetAlertHistory",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("ReconcileStartupAtLaunch", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (_settingsWriteGate.CanApplyAutomaticChange)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_settings = _settings with { StartAtLogin = startupStatus.IsRegistered };",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CodexNotFoundGuidanceContainsOfficialCommandAndRestartInstruction()
+    public void CodexNotFoundGuidanceContainsOfficialCommandAndInProcessRetry()
     {
         var document = XDocument.Load(TestAsset("CodexCliInstallWindow.axaml"));
         var text = string.Join(
@@ -135,9 +148,21 @@ public sealed class WindowsWidgetContractTests
         var source = File.ReadAllText(TestAsset("WindowsApp.cs"));
 
         Assert.Contains("npm install --global @openai/codex", text, StringComparison.Ordinal);
-        Assert.Contains("종료한 뒤 다시 실행", text, StringComparison.Ordinal);
+        Assert.Contains("앱을 재시작하지 않고", text, StringComparison.Ordinal);
+        Assert.Contains("다시 확인", text, StringComparison.Ordinal);
         Assert.Contains("IsCodexNotInstalled", source, StringComparison.Ordinal);
         Assert.Contains("_hasShownCodexInstallGuidance", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "CodexInstallGuidanceRequested += ShowCodexInstallGuidance",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CodexInstallGuidanceRequested -= ShowCodexInstallGuidance",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("RetryRequested", source, StringComparison.Ordinal);
+        Assert.Contains("OnRetryCodexCliDetection", source, StringComparison.Ordinal);
+        Assert.Contains("RefreshAsync", source, StringComparison.Ordinal);
         Assert.Equal(
             "avares://CodexUsage/Assets/codex-usage.ico",
             document.Root?.Attribute("Icon")?.Value);
@@ -183,6 +208,8 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("AboutRequested", source, StringComparison.Ordinal);
         Assert.Contains("Run at sign-in", source, StringComparison.Ordinal);
         Assert.Contains("Usage alerts", source, StringComparison.Ordinal);
+        Assert.Contains("BalloonTipClicked", source, StringComparison.Ordinal);
+        Assert.Contains("NotificationActivated", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -202,10 +229,16 @@ public sealed class WindowsWidgetContractTests
         Assert.DoesNotContain(document.Descendants().Attributes("Content"), attribute =>
             attribute.Value == "Close");
         Assert.Contains("https://github.com/taeseong/codexusage", source, StringComparison.Ordinal);
+        Assert.Contains(document.Descendants().Attributes("Content"), attribute =>
+            attribute.Value == "Copy diagnostics");
+        Assert.Contains("OnCopyDiagnostics", source, StringComparison.Ordinal);
+        Assert.Contains("Diagnostics copied.", source, StringComparison.Ordinal);
 
         var appSource = File.ReadAllText(TestAsset("WindowsApp.cs"));
         Assert.Contains("AboutRequested", appSource, StringComparison.Ordinal);
         Assert.Contains("ShowAbout", appSource, StringComparison.Ordinal);
+        Assert.Contains("BuildDiagnosticsAsync", appSource, StringComparison.Ordinal);
+        Assert.Contains("NotificationActivated", appSource, StringComparison.Ordinal);
     }
 
     [Fact]

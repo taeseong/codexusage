@@ -17,6 +17,8 @@ public partial class CodexCliInstallWindow : Window
         InitializeComponent();
     }
 
+    public event EventHandler? RetryRequested;
+
     public void SaveRenderedContent(string path)
     {
         var bitmap = new RenderTargetBitmap(
@@ -42,28 +44,37 @@ public partial class CodexCliInstallWindow : Window
             guidanceSize);
     }
 
+    public void SetRetryState(bool isBusy, string message)
+    {
+        RetryButton.IsEnabled = !isBusy;
+        ActionStatusText.Text = message;
+    }
+
     private async void OnCopyInstallCommand(object? sender, RoutedEventArgs e)
     {
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard is null)
         {
-            CopyStatusText.Text = "클립보드를 사용할 수 없습니다.";
+            ActionStatusText.Text = "클립보드를 사용할 수 없습니다.";
             return;
         }
 
         try
         {
             await clipboard.SetTextAsync(InstallCommand);
-            CopyStatusText.Text = "설치 명령을 복사했습니다.";
+            ActionStatusText.Text = "설치 명령을 복사했습니다.";
         }
         catch (Exception exception)
         {
             Trace.TraceWarning(
                 "The Codex CLI install command could not be copied: {0}",
                 exception.GetType().Name);
-            CopyStatusText.Text = "복사하지 못했습니다. 명령을 직접 선택해 주세요.";
+            ActionStatusText.Text = "복사하지 못했습니다. 명령을 직접 선택해 주세요.";
         }
     }
+
+    private void OnRetry(object? sender, RoutedEventArgs e) =>
+        RetryRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnClose(object? sender, RoutedEventArgs e) => Close();
 

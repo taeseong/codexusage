@@ -22,6 +22,9 @@
     <Content Include="../../src/CodexUsage.Desktop/Views/UsageWindow.axaml"
              Link="TestAssets/UsageWindow.axaml"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Desktop/Views/UsageWindow.axaml.cs"
+             Link="TestAssets/UsageWindow.axaml.cs"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/CodexUsage.Desktop/Controls/UsageLimitCard.axaml"
              Link="TestAssets/UsageLimitCard.axaml"
              CopyToOutputDirectory="PreserveNewest" />

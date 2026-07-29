@@ -9,10 +9,12 @@ using CodexUsage.Codex;
 using CodexUsage.Core.Usage;
 using CodexUsage.Desktop.ViewModels;
 using CodexUsage.Desktop.Views;
-using CodexUsage.Windows.SystemTray;
+using CodexUsage.Windows.Diagnostics;
 using CodexUsage.Windows.Notifications;
+using CodexUsage.Windows.Recovery;
 using CodexUsage.Windows.Settings;
 using CodexUsage.Windows.Startup;
+using CodexUsage.Windows.SystemTray;
 using CodexUsage.Windows.ViewModels;
 using CodexUsage.Windows.Views;
 using CodexUsage.Windows.Windowing;
@@ -25,6 +27,7 @@ public partial class App : Application
     private WidgetSummaryViewModel? _widgetSummaryViewModel;
     private UsageWidgetWindow? _widgetWindow;
     private UsageWindow? _detailsWindow;
+    private SettingsWindow? _settingsWindow;
     private AboutWindow? _aboutWindow;
     private CodexCliInstallWindow? _codexCliInstallWindow;
     private WidgetInteractionState? _interactionState;
@@ -34,8 +37,14 @@ public partial class App : Application
     private readonly WindowsStartupService _startupService = new();
     private readonly UsageThresholdNotifier _usageThresholdNotifier = new();
     private readonly JsonUsageHistoryStore _usageHistoryStore = new();
+    private readonly JsonUsageSnapshotCache _usageSnapshotCache = new();
+    private readonly WindowsDiagnosticsService _diagnosticsService = new();
+    private WindowsRefreshRecoveryService? _refreshRecoveryService;
     private UsageHistoryViewModel? _usageHistoryViewModel;
     private WindowsAppSettings _settings = new();
+    private WindowsSettingsWriteGate _settingsWriteGate =
+        new(WindowsSettingsRecoveryStatus.None);
+    private string? _settingsRecoveryNotice;
     private bool _hasShownCodexInstallGuidance;
     private bool _isQuitting;
 
@@ -55,11 +64,26 @@ public partial class App : Application
     {
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _settings = _settingsStore.Load();
-        _usageViewModel = new UsageViewModel(new LiveCodexUsageProvider());
+        _settingsWriteGate = new WindowsSettingsWriteGate(
+            _settingsStore.LastRecoveryStatus);
+        _settingsRecoveryNotice = _settingsStore.LastRecoveryStatus switch
+        {
+            WindowsSettingsRecoveryStatus.CorruptFilePreserved =>
+                "Damaged settings were preserved and safe defaults are active.",
+            WindowsSettingsRecoveryStatus.CorruptFilePreservationFailed =>
+                "Damaged settings could not be preserved. Automatic writes are paused until you review and save.",
+            WindowsSettingsRecoveryStatus.ReadFailed =>
+                "Settings could not be read. Automatic writes are paused until you review and save.",
+            _ => null,
+        };
+        _usageViewModel = new UsageViewModel(
+            new LiveCodexUsageProvider(),
+            snapshotCache: _usageSnapshotCache);
         _usageHistoryViewModel = new UsageHistoryViewModel(_usageHistoryStore);
         _usageViewModel.History = _usageHistoryViewModel;
         _usageViewModel.PropertyChanged += OnUsagePropertyChanged;
         _usageViewModel.SnapshotRefreshed += OnSnapshotRefreshed;
+        _usageViewModel.CodexInstallGuidanceRequested += ShowCodexInstallGuidance;
         _widgetSummaryViewModel = new WidgetSummaryViewModel(_usageViewModel);
         _interactionState = new WidgetInteractionState();
         if (string.Equals(
@@ -88,6 +112,13 @@ public partial class App : Application
         {
             DataContext = _usageViewModel,
         };
+        _detailsWindow.RestoreState(new UsageWindowRestoreState(
+            _settings.DetailsWindow.X,
+            _settings.DetailsWindow.Y,
+            _settings.DetailsWindow.Width,
+            _settings.DetailsWindow.Height,
+            _settings.DetailsWindow.SelectedTabIndex));
+        _detailsWindow.StateChanged += (_, _) => PersistSettings();
         desktop.MainWindow = _widgetWindow;
         desktop.ShutdownRequested += (_, args) =>
         {
@@ -101,7 +132,7 @@ public partial class App : Application
         try
         {
             ConfigureTray(desktop);
-            _startupService.SetEnabled(_settings.StartAtLogin);
+            ReconcileStartupAtLaunch();
         }
         catch (Exception exception)
         {
@@ -112,6 +143,21 @@ public partial class App : Application
                     false,
                     "The system tray is unavailable. Click-through is disabled so the widget remains recoverable.");
             }
+        }
+
+        try
+        {
+            _refreshRecoveryService = new WindowsRefreshRecoveryService(
+                _usageViewModel.RequestImmediateRefresh);
+            _refreshRecoveryService.Start();
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning(
+                "Windows refresh recovery monitoring failed: {0}",
+                exception.GetType().Name);
+            _refreshRecoveryService?.Dispose();
+            _refreshRecoveryService = null;
         }
 
         if (_settings.IsWidgetVisible)
@@ -139,7 +185,9 @@ public partial class App : Application
         _trayIcon.StartupToggleRequested += (_, _) => ToggleStartupAtLogin();
         _trayIcon.UsageAlertsToggleRequested += (_, _) => ToggleUsageAlerts();
         _trayIcon.DetailsRequested += (_, _) => ShowDetails();
+        _trayIcon.SettingsRequested += (_, _) => ShowSettings();
         _trayIcon.AboutRequested += (_, _) => ShowAbout();
+        _trayIcon.NotificationActivated += (_, _) => ShowDetails();
         _trayIcon.QuitRequested += (_, _) => Quit(desktop);
         _trayIcon.UpdateStartAtLogin(_settings.StartAtLogin);
         _trayIcon.UpdateUsageAlerts(_settings.UsageAlertsEnabled);
@@ -187,6 +235,14 @@ public partial class App : Application
                             "The Codex CLI installation guidance was not shown.");
                     }
 
+                    if (string.Equals(
+                            Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_CLI_RETRY"),
+                            "1",
+                            StringComparison.Ordinal))
+                    {
+                        await RetryCodexCliDetectionAsync();
+                    }
+
                     await Task.Delay(100);
                     _codexCliInstallWindow.SaveRenderedContent(capturePath);
                 }
@@ -195,8 +251,15 @@ public partial class App : Application
                         "1",
                         StringComparison.Ordinal))
                 {
+                    if (string.Equals(
+                            Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_HISTORY"),
+                            "1",
+                            StringComparison.Ordinal))
+                    {
+                        _detailsWindow?.SelectHistoryTab();
+                    }
                     ShowDetails();
-                    await Task.Delay(100);
+                    await Task.Delay(300);
                     _detailsWindow?.SaveRenderedContent(capturePath);
                 }
                 else if (string.Equals(
@@ -205,8 +268,42 @@ public partial class App : Application
                         StringComparison.Ordinal))
                 {
                     ShowAbout();
+                    if (string.Equals(
+                            Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_DIAGNOSTICS"),
+                            "1",
+                            StringComparison.Ordinal) &&
+                        _aboutWindow is not null)
+                    {
+                        var diagnostics = await _aboutWindow.CopyDiagnosticsAsync();
+                        var diagnosticsPath = Environment.GetEnvironmentVariable(
+                            "CODEX_USAGE_CAPTURE_DIAGNOSTICS_TEXT_PATH");
+                        if (diagnostics is not null &&
+                            !string.IsNullOrWhiteSpace(diagnosticsPath))
+                        {
+                            await File.WriteAllTextAsync(diagnosticsPath, diagnostics);
+                        }
+                    }
+
                     await Task.Delay(100);
                     _aboutWindow?.SaveRenderedContent(capturePath);
+                }
+                else if (string.Equals(
+                             Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_SETTINGS"),
+                             "1",
+                             StringComparison.Ordinal))
+                {
+                    ShowSettings();
+                    if (string.Equals(
+                            Environment.GetEnvironmentVariable("CODEX_USAGE_CAPTURE_TEST_NOTIFICATION"),
+                            "1",
+                            StringComparison.Ordinal))
+                    {
+                        await Task.Delay(100);
+                        ShowTestNotification();
+                    }
+
+                    await Task.Delay(300);
+                    _settingsWindow?.SaveRenderedContent(capturePath);
                 }
                 else
                 {
@@ -254,12 +351,26 @@ public partial class App : Application
         }
 
         _trayIcon?.UpdateToolTip(_usageViewModel.TrayToolTip);
-        if (args.PropertyName == nameof(UsageViewModel.IsCodexNotInstalled) &&
-            _usageViewModel.IsCodexNotInstalled &&
-            !_hasShownCodexInstallGuidance)
+        if (args.PropertyName != nameof(UsageViewModel.IsCodexNotInstalled))
         {
-            _hasShownCodexInstallGuidance = true;
-            ShowCodexInstallGuidance();
+            return;
+        }
+
+        if (_usageViewModel.IsCodexNotInstalled)
+        {
+            if (!_hasShownCodexInstallGuidance)
+            {
+                _hasShownCodexInstallGuidance = true;
+                ShowCodexInstallGuidance();
+            }
+
+            return;
+        }
+
+        _hasShownCodexInstallGuidance = false;
+        if (_codexCliInstallWindow?.IsVisible is true)
+        {
+            _codexCliInstallWindow.Close();
         }
     }
 
@@ -285,6 +396,7 @@ public partial class App : Application
         if (_codexCliInstallWindow is null)
         {
             _codexCliInstallWindow = new CodexCliInstallWindow();
+            _codexCliInstallWindow.RetryRequested += OnRetryCodexCliDetection;
             _codexCliInstallWindow.Closed += (_, _) => _codexCliInstallWindow = null;
         }
 
@@ -299,6 +411,48 @@ public partial class App : Application
         }
 
         _codexCliInstallWindow.Activate();
+    }
+
+    private async void OnRetryCodexCliDetection(object? sender, EventArgs args) =>
+        await RetryCodexCliDetectionAsync();
+
+    private async Task RetryCodexCliDetectionAsync()
+    {
+        var window = _codexCliInstallWindow;
+        if (window is null || _usageViewModel is null)
+        {
+            return;
+        }
+
+        window.SetRetryState(isBusy: true, "Codex CLI를 다시 확인하는 중입니다.");
+        try
+        {
+            await _usageViewModel.RefreshAsync();
+            if (_usageViewModel.IsCodexNotInstalled)
+            {
+                window.SetRetryState(
+                    isBusy: false,
+                    "아직 Codex CLI를 찾지 못했습니다. 설치가 끝났는지 확인해 주세요.");
+            }
+            else
+            {
+                _hasShownCodexInstallGuidance = false;
+                if (window.IsVisible)
+                {
+                    window.Close();
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Codex CLI retry failed: {0}", exception.GetType().Name);
+            if (window.IsVisible)
+            {
+                window.SetRetryState(
+                    isBusy: false,
+                    "다시 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            }
+        }
     }
 
     private void ToggleWidgetVisibility()
@@ -340,6 +494,12 @@ public partial class App : Application
 
     private void ToggleStartupAtLogin()
     {
+        if (!_settingsWriteGate.CanApplyAutomaticChange)
+        {
+            ShowSettings();
+            return;
+        }
+
         var enabled = !_settings.StartAtLogin;
         try
         {
@@ -356,10 +516,29 @@ public partial class App : Application
 
     private void ToggleUsageAlerts()
     {
+        if (!_settingsWriteGate.CanApplyAutomaticChange)
+        {
+            ShowSettings();
+            return;
+        }
+
         var enabled = !_settings.UsageAlertsEnabled;
         _settings = _settings with { UsageAlertsEnabled = enabled };
         _trayIcon?.UpdateUsageAlerts(enabled);
         PersistSettings();
+    }
+
+    private void ReconcileStartupAtLaunch()
+    {
+        if (_settingsWriteGate.CanApplyAutomaticChange)
+        {
+            _startupService.SetEnabled(_settings.StartAtLogin);
+            return;
+        }
+
+        var startupStatus = _startupService.GetStatus();
+        _settings = _settings with { StartAtLogin = startupStatus.IsRegistered };
+        _trayIcon?.UpdateStartAtLogin(_settings.StartAtLogin);
     }
 
     private void ShowDetails()
@@ -377,7 +556,7 @@ public partial class App : Application
     {
         if (_aboutWindow is null)
         {
-            _aboutWindow = new AboutWindow(GetAppVersion());
+            _aboutWindow = new AboutWindow(GetAppVersion(), BuildDiagnosticsAsync);
             _aboutWindow.Closed += (_, _) => _aboutWindow = null;
         }
 
@@ -389,8 +568,177 @@ public partial class App : Application
         _aboutWindow.Activate();
     }
 
+    private async Task<string> BuildDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        StartupRegistrationStatus? startupStatus = null;
+        try
+        {
+            startupStatus = _startupService.GetStatus();
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceWarning(
+                "Startup status was unavailable for diagnostics: {0}",
+                exception.GetType().Name);
+        }
+
+        return await _diagnosticsService.BuildAsync(
+            GetAppVersion(),
+            _usageViewModel?.LastStatus,
+            startupStatus,
+            cancellationToken);
+    }
+
+    private void ShowSettings()
+    {
+        if (_settingsWindow is null)
+        {
+            StartupRegistrationStatus? startupStatus = null;
+            try
+            {
+                startupStatus = _startupService.GetStatus();
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("Windows startup status inspection failed: {0}", exception.GetType().Name);
+            }
+
+            var viewModel = new WindowsSettingsViewModel(
+                _settings,
+                startupStatus,
+                _settingsRecoveryNotice);
+            viewModel.SaveRequested += ApplySettings;
+            viewModel.CancelRequested += CloseSettings;
+            viewModel.ManageHistoryRequested += OpenHistorySettings;
+            viewModel.TestNotificationRequested += ShowTestNotification;
+            viewModel.RepairStartupRequested += RepairStartupRegistration;
+            _settingsWindow = new SettingsWindow
+            {
+                DataContext = viewModel,
+            };
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        }
+
+        if (!_settingsWindow.IsVisible)
+        {
+            _settingsWindow.Show();
+        }
+
+        _settingsWindow.Activate();
+    }
+
+    private void ApplySettings(WindowsSettingsPreferences preferences)
+    {
+        var previousSettings = _settings;
+        try
+        {
+            _startupService.SetEnabled(preferences.StartAtLogin);
+            var thresholdsChanged =
+                _settings.WarningThresholdPercent != preferences.WarningThresholdPercent ||
+                _settings.CriticalThresholdPercent != preferences.CriticalThresholdPercent;
+            _settings = _settings with
+            {
+                StartAtLogin = preferences.StartAtLogin,
+                UsageAlertsEnabled = preferences.UsageAlertsEnabled,
+                ShortTermAlertsEnabled = preferences.ShortTermAlertsEnabled,
+                WeeklyAlertsEnabled = preferences.WeeklyAlertsEnabled,
+                WarningThresholdPercent = preferences.WarningThresholdPercent,
+                CriticalThresholdPercent = preferences.CriticalThresholdPercent,
+                QuietHoursEnabled = preferences.QuietHoursEnabled,
+                QuietHoursStart = preferences.QuietHoursStart,
+                QuietHoursEnd = preferences.QuietHoursEnd,
+                ResetReminderEnabled = preferences.ResetReminderEnabled,
+                ResetReminderMinutes = preferences.ResetReminderMinutes,
+                AlertHistory = thresholdsChanged || preferences.ResetAlertHistory
+                    ? new UsageAlertHistory()
+                    : _settings.AlertHistory,
+            };
+            _trayIcon?.UpdateStartAtLogin(_settings.StartAtLogin);
+            _trayIcon?.UpdateUsageAlerts(_settings.UsageAlertsEnabled);
+            if (!PersistSettings(allowRecoveryOverwrite: true))
+            {
+                _settings = previousSettings;
+                _startupService.SetEnabled(previousSettings.StartAtLogin);
+                _trayIcon?.UpdateStartAtLogin(previousSettings.StartAtLogin);
+                _trayIcon?.UpdateUsageAlerts(previousSettings.UsageAlertsEnabled);
+                if (_settingsWindow?.DataContext is WindowsSettingsViewModel saveViewModel)
+                {
+                    saveViewModel.ShowExternalError("Unable to save settings. Your previous settings were restored.");
+                }
+
+                return;
+            }
+
+            _settingsRecoveryNotice = null;
+            CloseSettings();
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Windows settings update failed: {0}", exception.GetType().Name);
+            if (_settingsWindow?.DataContext is WindowsSettingsViewModel viewModel)
+            {
+                viewModel.ShowExternalError("Unable to update Windows startup settings.");
+            }
+        }
+    }
+
+    private void ShowTestNotification()
+    {
+        if (_settingsWindow?.DataContext is not WindowsSettingsViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_trayIcon is null)
+            {
+                throw new InvalidOperationException("The system tray is unavailable.");
+            }
+
+            _trayIcon.ShowTestNotification();
+            viewModel.ShowFeedback("Test notification sent.");
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Windows test notification failed: {0}", exception.GetType().Name);
+            viewModel.ShowExternalError("Unable to show a Windows notification.");
+        }
+    }
+
+    private void RepairStartupRegistration(bool enabled)
+    {
+        if (_settingsWindow?.DataContext is not WindowsSettingsViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            _startupService.SetEnabled(enabled);
+            viewModel.UpdateStartupStatus(_startupService.GetStatus());
+            viewModel.ShowFeedback(enabled
+                ? "Windows startup registration repaired."
+                : "Windows startup registration removed.");
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Windows startup repair failed: {0}", exception.GetType().Name);
+            viewModel.ShowExternalError("Unable to repair Windows startup registration.");
+        }
+    }
+
+    private void CloseSettings() => _settingsWindow?.Close();
+
+    private void OpenHistorySettings()
+    {
+        CloseSettings();
+        _detailsWindow?.SelectHistoryTab();
+        ShowDetails();
+    }
+
     private static string GetAppVersion() =>
-        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.1.0";
+        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.1.2";
 
     private async void Quit(IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -400,10 +748,13 @@ public partial class App : Application
         }
 
         _isQuitting = true;
+        _refreshRecoveryService?.Dispose();
+        _refreshRecoveryService = null;
         if (_usageViewModel is not null)
         {
             _usageViewModel.PropertyChanged -= OnUsagePropertyChanged;
             _usageViewModel.SnapshotRefreshed -= OnSnapshotRefreshed;
+            _usageViewModel.CodexInstallGuidanceRequested -= ShowCodexInstallGuidance;
             await _usageViewModel.DisposeAsync();
         }
 
@@ -420,6 +771,9 @@ public partial class App : Application
         _aboutWindow?.Close();
         _aboutWindow = null;
 
+        _settingsWindow?.Close();
+        _settingsWindow = null;
+
         if (_widgetWindow is not null)
         {
             _widgetPositionStore.Save(_widgetWindow.GetPositionRestorePoint());
@@ -433,13 +787,42 @@ public partial class App : Application
         desktop.Shutdown();
     }
 
-    private void PersistSettings()
+    private bool PersistSettings(bool allowRecoveryOverwrite = false)
     {
+        var detailsState = _detailsWindow is { HasBeenOpened: true }
+            ? _detailsWindow.CaptureRestoreState()
+            : null;
         _settings = _settings with
         {
             IsWidgetVisible = _widgetWindow?.IsVisible ?? _settings.IsWidgetVisible,
             WidgetMode = _interactionState?.Mode ?? _settings.WidgetMode,
+            DetailsWindow = detailsState is null
+                ? _settings.DetailsWindow
+                : new DetailsWindowSettings
+                {
+                    X = detailsState.X,
+                    Y = detailsState.Y,
+                    Width = detailsState.Width,
+                    Height = detailsState.Height,
+                    SelectedTabIndex = detailsState.SelectedTabIndex,
+                },
         };
-        _settingsStore.Save(_settings);
+        if (!_settingsWriteGate.CanWrite(allowRecoveryOverwrite))
+        {
+            return false;
+        }
+
+        var saved = _settingsStore.Save(_settings);
+        if (saved)
+        {
+            _settingsWriteGate.OnWriteSucceeded(allowRecoveryOverwrite);
+        }
+
+        if (!saved)
+        {
+            Trace.TraceError("Windows settings persistence failed.");
+        }
+
+        return saved;
     }
 }
