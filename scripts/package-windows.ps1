@@ -38,6 +38,18 @@ if ($sourceRevision -notmatch "^[0-9a-fA-F]{40}$") {
     throw "Git did not return a full source revision."
 }
 
+$workingTree = Invoke-Git -Arguments @("status", "--porcelain")
+$informationalVersion = if ($workingTree.Count -eq 0) {
+    "$Version+$sourceRevision"
+}
+else {
+    # An uncommitted package cannot be reproduced from HEAD. Do not present the
+    # HEAD SHA as its build provenance in About or copied diagnostics.
+    "$Version+local"
+}
+$sourceRevisionId = if ($workingTree.Count -eq 0) { $sourceRevision } else { "" }
+$includeSourceRevisionInInformationalVersion = if ($workingTree.Count -eq 0) { "true" } else { "false" }
+
 if (-not [string]::IsNullOrWhiteSpace($ReleaseTag)) {
     if ($ReleaseTag -cne "v$Version") {
         throw "Release tag $ReleaseTag must exactly match version tag v$Version."
@@ -48,7 +60,6 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseTag)) {
         throw "Release tag $ReleaseTag does not resolve to the checked-out source revision."
     }
 
-    $workingTree = Invoke-Git -Arguments @("status", "--porcelain")
     if ($workingTree.Count -gt 0) {
         throw "Release packaging requires a clean Git working tree. Commit or discard local changes first."
     }
@@ -99,7 +110,9 @@ New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
     --disable-build-servers `
     -m:1 `
     -p:UseSharedCompilation=false `
-    "-p:SourceRevisionId=$sourceRevision" `
+    "-p:SourceRevisionId=$sourceRevisionId" `
+    "-p:InformationalVersion=$informationalVersion" `
+    "-p:IncludeSourceRevisionInInformationalVersion=$includeSourceRevisionInInformationalVersion" `
     "-p:ContinuousIntegrationBuild=$(-not [string]::IsNullOrWhiteSpace($ReleaseTag))" `
     --output $publishDirectory
 if ($LASTEXITCODE -ne 0) {

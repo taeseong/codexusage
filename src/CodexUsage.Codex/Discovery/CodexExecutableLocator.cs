@@ -2,6 +2,7 @@ namespace CodexUsage.Codex.Discovery;
 
 public sealed class CodexExecutableLocator
 {
+    private const string CodexInstallDirectoryVariable = "CODEX_INSTALL_DIR";
     private readonly Func<string?> _pathProvider;
     private readonly IReadOnlyList<string> _knownPaths;
     private readonly Func<string, bool> _fileExists;
@@ -89,13 +90,18 @@ public sealed class CodexExecutableLocator
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (OperatingSystem.IsWindows())
         {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            paths.AddRange(
+                GetWindowsStandalonePaths(
+                    localAppData,
+                    Environment.GetEnvironmentVariable(CodexInstallDirectoryVariable)));
+
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             if (!string.IsNullOrWhiteSpace(appData))
             {
                 paths.Add(Path.Combine(appData, "npm", "codex.cmd"));
             }
 
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (!string.IsNullOrWhiteSpace(localAppData))
             {
                 paths.Add(Path.Combine(localAppData, "Microsoft", "WinGet", "Links", "codex.exe"));
@@ -126,6 +132,46 @@ public sealed class CodexExecutableLocator
         }
 
         return paths;
+    }
+
+    internal static IReadOnlyList<string> GetWindowsStandalonePaths(
+        string? localAppData,
+        string? configuredInstallDirectory)
+    {
+        var paths = new List<string>();
+
+        // The official PowerShell installer writes codex.exe here by default. A caller can
+        // change that visible command directory with CODEX_INSTALL_DIR, so probe it first.
+        AddCodexExecutablePath(paths, configuredInstallDirectory);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            AddCodexExecutablePath(
+                paths,
+                Path.Combine(localAppData, "Programs", "OpenAI", "Codex", "bin"));
+        }
+
+        return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static void AddCodexExecutablePath(ICollection<string> paths, string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            var candidate = Path.Combine(directory.Trim(), "codex.exe");
+            _ = Path.GetFullPath(candidate);
+            paths.Add(candidate);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            // A malformed user environment variable must not prevent the remaining
+            // safe discovery locations from being checked.
+        }
     }
 
     private static string? GetCurrentSearchPath()

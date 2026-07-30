@@ -71,10 +71,10 @@ uninstalls it again:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\qa-windows-installer-upgrade.ps1 `
   -BaselineInstallerPath artifacts\installer\CodexUsage-Setup-0.1.1-win-x64.exe `
-  -CandidateInstallerPath artifacts\installer\CodexUsage-Setup-0.1.3-win-x64.exe
+  -CandidateInstallerPath artifacts\installer\CodexUsage-Setup-0.1.4-win-x64.exe
 ```
 
-Pushing a version tag such as `v0.1.3` runs `.github/workflows/release-windows.yml`.
+Pushing a version tag such as `v0.1.4` runs `.github/workflows/release-windows.yml`.
 The workflow requires the tag, project version, and `docs/RELEASE_NOTES_<version>.md`
 to match, checks that the tag resolves to the checked-out clean commit, and embeds a
 short source revision in the build metadata before it creates a draft GitHub Release. Review the uploaded installer,

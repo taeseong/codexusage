@@ -16,9 +16,9 @@ The settings store distinguishes a normal first launch from malformed or unreada
 
 The detail window restores its size, position, and selected tab. Restored coordinates are clamped to an available monitor work area. History storage flushes a temporary file before atomic replacement and can recover a complete temporary file after interruption.
 
-Windows release builds use an isolated .NET artifacts graph, remove symbols from the public payload, compile the per-user Inno Setup package, and write a SHA-256 checksum. Version tags are validated against the project version before a draft GitHub Release is created for manual review and publication.
+Windows release builds use an isolated .NET artifacts graph, remove symbols from the public payload, compile the per-user Inno Setup package, and write a SHA-256 checksum. Version tags are validated against the project version before a draft GitHub Release is created for manual review and publication. Tagged packages require a clean working tree and carry their source revision; an explicitly manual package from uncommitted work reports `local build` rather than incorrectly claiming that HEAD reproduces it.
 
-Codex CLI discovery is reevaluated for every refresh. On Windows it combines the current process, user, and machine PATH values with known npm, WinGet, WindowsApps, and user-local locations while continuing to ignore PowerShell shims. The installation guidance can trigger the same live provider refresh without restarting the app and closes automatically after the CLI becomes discoverable.
+Codex CLI discovery is reevaluated for every refresh. On Windows it combines the current process, user, and machine PATH values with the official PowerShell standalone install directory (`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`), an optional `CODEX_INSTALL_DIR` override, and known npm, WinGet, WindowsApps, and user-local locations while continuing to ignore PowerShell `.ps1` shims. The installation guidance can trigger the same live provider refresh without restarting the app and closes automatically after the CLI becomes discoverable.
 
 The About window builds diagnostics locally. It invokes only `codex --version`, accepts only a constrained `codex-cli <version>` token from stdout, discards stderr, replaces known user and program roots with environment tokens, reduces unknown locations to a file name, and reports only app/OS architecture, lookup status, CLI status, and startup registration state. Windows notification activation opens the existing detail window.
 
@@ -102,4 +102,4 @@ Windows 기본 트레이 메뉴는 글꼴과 여백을 앱에서 제어할 수 �
 
 Windows 설정은 사용자 로컬 `settings.json`에 원자적으로 저장하며, 손상 파일은 별도 보존한 뒤 안전한 기본값으로 복구합니다. 위젯 표시 여부와 편집/잠금 상태, 로그인 시 실행 여부, 사용량 알림 활성화 상태 및 한도별 알림 이력을 보존합니다. 위치 파일에는 X/Y와 함께 마지막 화면의 bounds·DPI 배율을 저장해 화면 배치가 바뀌어도 가장 가까운 화면을 선택한 뒤 작업 영역 안으로 보정합니다. 자동 실행은 현재 사용자 `Run` 레지스트리 키만 사용하며 Settings에서 실제 등록 상태와 현재 실행 경로의 일치 여부를 확인하고 복구할 수 있습니다. 알림은 사용자가 지정한 경고·위험 임계치에서 reset 구간별 한 번씩 표시하며, 5분 이내의 reset 예정 시각 보정만으로는 알림 이력을 초기화하지 않습니다.
 
-Windows의 Codex CLI 탐색은 새로고침마다 process/user/machine PATH와 표준 npm·WinGet 경로를 다시 확인합니다. About 진단은 로컬에서만 생성하고 사용자 경로를 환경 변수 토큰으로 치환하며, 사용량 알림 클릭은 기존 상세 창을 엽니다.
+Windows의 Codex CLI 탐색은 새로고침마다 process/user/machine PATH, 공식 PowerShell standalone 기본 경로(`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`), 선택적 `CODEX_INSTALL_DIR`, 표준 npm·WinGet 경로를 다시 확인합니다. About 진단은 로컬에서만 생성하고 사용자 경로를 환경 변수 토큰으로 치환하며, 사용량 알림 클릭은 기존 상세 창을 엽니다.

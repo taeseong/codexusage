@@ -12,7 +12,7 @@ internal sealed record BuildProvenance(string Version, string Revision)
 
     internal static BuildProvenance FromAssembly(Assembly? assembly)
     {
-        var version = assembly?.GetName().Version?.ToString(3) ?? "0.1.3";
+        var version = assembly?.GetName().Version?.ToString(3) ?? "0.1.4";
         var informationalVersion = assembly?
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;

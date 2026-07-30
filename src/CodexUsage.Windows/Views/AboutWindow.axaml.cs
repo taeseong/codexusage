@@ -13,7 +13,7 @@ public partial class AboutWindow : Window
     private readonly Func<CancellationToken, Task<string>> _diagnosticsProvider;
 
     public AboutWindow()
-        : this("0.1.3", "local build", _ => Task.FromResult("Diagnostics unavailable"))
+        : this("0.1.4", "local build", _ => Task.FromResult("Diagnostics unavailable"))
     {
     }
 

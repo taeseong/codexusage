@@ -84,4 +84,57 @@ public sealed class CodexExecutableLocatorTests
 
         Assert.Equal(Path.GetFullPath(installedExecutable), locator.Find());
     }
+
+    [Fact]
+    public void GetWindowsStandalonePaths_PrefersConfiguredPowerShellInstallDirectory()
+    {
+        // Given: the official PowerShell installer uses LocalAppData by default,
+        // but CODEX_INSTALL_DIR can move the visible codex.exe command.
+        const string localAppData = @"C:\Users\Example\AppData\Local";
+        const string configuredDirectory = @"D:\Tools\Codex";
+
+        // When
+        var paths = CodexExecutableLocator.GetWindowsStandalonePaths(
+            localAppData,
+            configuredDirectory);
+
+        // Then
+        Assert.Equal(
+            [
+                Path.Combine(configuredDirectory, "codex.exe"),
+                Path.Combine(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe"),
+            ],
+            paths);
+    }
+
+    [Fact]
+    public void GetWindowsStandalonePaths_UsesOfficialDefaultWhenNoOverrideIsConfigured()
+    {
+        // Given
+        const string localAppData = @"C:\Users\Example\AppData\Local";
+
+        // When
+        var paths = CodexExecutableLocator.GetWindowsStandalonePaths(localAppData, null);
+
+        // Then
+        Assert.Equal(
+            [Path.Combine(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe")],
+            paths);
+    }
+
+    [Fact]
+    public void GetWindowsStandalonePaths_IgnoresMalformedConfiguredDirectory()
+    {
+        // Given: an invalid environment value must not prevent discovery from
+        // checking the official PowerShell installation directory.
+        const string localAppData = @"C:\Users\Example\AppData\Local";
+
+        // When
+        var paths = CodexExecutableLocator.GetWindowsStandalonePaths(localAppData, "\0");
+
+        // Then
+        Assert.Equal(
+            [Path.Combine(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe")],
+            paths);
+    }
 }

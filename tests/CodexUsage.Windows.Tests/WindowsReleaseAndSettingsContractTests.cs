@@ -18,6 +18,9 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("[string]$ReleaseTag", script, StringComparison.Ordinal);
         Assert.Contains("Release packaging requires a clean Git working tree", script, StringComparison.Ordinal);
         Assert.Contains("SourceRevisionId", script, StringComparison.Ordinal);
+        Assert.Contains("InformationalVersion", script, StringComparison.Ordinal);
+        Assert.Contains("IncludeSourceRevisionInInformationalVersion", script, StringComparison.Ordinal);
+        Assert.Contains("$Version+local", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -131,7 +134,7 @@ public sealed class WindowsReleaseAndSettingsContractTests
             _ => throw new ArgumentOutOfRangeException(nameof(form)),
         };
 
-        Assert.Equal("v0.1.3", expectedTag);
+        Assert.Equal("v0.1.4", expectedTag);
         Assert.Equal(expected, string.Equals(candidate, expectedTag, StringComparison.Ordinal));
     }
 

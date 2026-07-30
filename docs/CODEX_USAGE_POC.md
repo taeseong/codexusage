@@ -1,5 +1,16 @@
 # Codex Usage PoC
 
+## Windows PowerShell CLI discovery (2026-07-30)
+
+The official PowerShell installer places its visible command at
+`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe` by default and supports
+an installer-time `CODEX_INSTALL_DIR` override. Windows discovery probes both
+locations on every refresh, in addition to existing npm, WinGet, WindowsApps,
+and PATH candidates. It runs the selected executable directly (or an npm
+`.cmd` shim through `cmd.exe`) and never invokes `codex.ps1`, so PowerShell
+execution policy does not affect usage lookup. No authentication files, tokens,
+or cookies are read as part of discovery.
+
 ## History consumer boundary
 
 The history feature consumes only `usedPercent`, `windowDurationMins`, `resetsAt`, and the rate-limit/account plan values already returned by `account/rateLimits/read` and `account/read`. It does not access credentials, cookies, or any additional local Codex data.

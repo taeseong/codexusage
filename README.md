@@ -36,6 +36,10 @@ Codex CLI must be installed and signed in before live usage data can be shown:
 npm install --global @openai/codex
 ```
 
+The official PowerShell standalone installer is also supported. CodexUsage
+detects its default Windows command location and a custom `CODEX_INSTALL_DIR`
+location without reading authentication files.
+
 Use the system tray to show or hide the widget, switch between edit and click-through modes, refresh data, open details, view About information, or quit the app.
 The About window can copy diagnostics for issue reports. User profile paths are replaced with environment tokens, and credentials, account identifiers, usage values, and conversation data are not included.
 
