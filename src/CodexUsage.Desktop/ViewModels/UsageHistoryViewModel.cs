@@ -19,6 +19,7 @@ public sealed class UsageHistoryViewModel : ObservableObject
     private bool _isUnavailable;
     private bool _isClearConfirmationVisible;
     private int _selectedMonthIndex;
+    private int _observationFilterIndex;
 
     public UsageHistoryViewModel(IUsageHistoryStore store)
     {
@@ -56,6 +57,7 @@ public sealed class UsageHistoryViewModel : ObservableObject
     }
     public bool IsClearConfirmationVisible { get => _isClearConfirmationVisible; private set => SetProperty(ref _isClearConfirmationVisible, value); }
     public bool HasWindows => Windows.Count > 0;
+    public bool HasRecordedWindows => _state.Windows.Count > 0;
     public MonthlyUsageHistoryGroup? SelectedMonthGroup
     {
         get => MonthlyGroups.Count == 0
@@ -78,6 +80,24 @@ public sealed class UsageHistoryViewModel : ObservableObject
     }
     public bool CanShowOlderMonth => _selectedMonthIndex < MonthlyGroups.Count - 1;
     public bool CanShowNewerMonth => _selectedMonthIndex > 0;
+    public int ObservationFilterIndex
+    {
+        get => _observationFilterIndex;
+        set
+        {
+            var normalized = Math.Clamp(value, 0, 2);
+            if (SetProperty(ref _observationFilterIndex, normalized))
+            {
+                RefreshView();
+            }
+        }
+    }
+    public string ObservationFilterSummary => ObservationFilterIndex switch
+    {
+        1 => "Completed observations only",
+        2 => "Partial observations only",
+        _ => "All observations",
+    };
     public bool HasComparableHistory => !IsUnavailable && Metrics.ComparableWindowCount >= 3;
     public bool HasInsufficientComparableHistory =>
         !IsUnavailable && HasWindows && !HasComparableHistory;
@@ -137,8 +157,13 @@ public sealed class UsageHistoryViewModel : ObservableObject
     private void RefreshView()
     {
         var selectedMonth = SelectedMonthGroup?.Month;
+        var recentEntries = _state.Windows
+            .OrderByDescending(entry => entry.FirstObservedAt)
+            .Take(12)
+            .Where(MatchesObservationFilter)
+            .ToArray();
         Windows.Clear();
-        foreach (var entry in _state.Windows.OrderByDescending(entry => entry.FirstObservedAt).Take(12)) Windows.Add(entry);
+        foreach (var entry in recentEntries) Windows.Add(entry);
         MonthlyGroups.Clear();
         foreach (var group in Windows
                      .GroupBy(entry => new DateTime(entry.FirstObservedAt.LocalDateTime.Year, entry.FirstObservedAt.LocalDateTime.Month, 1))
@@ -152,13 +177,17 @@ public sealed class UsageHistoryViewModel : ObservableObject
             ? 0
             : Math.Max(0, MonthlyGroups.ToList().FindIndex(group => group.Month == selectedMonth));
         StatusText = Windows.Count == 0
-            ? "History starts after this feature is installed; peak observed values are not total usage."
+            ? ObservationFilterIndex == 0
+                ? "History starts after this feature is installed; peak observed values are not total usage."
+                : "No observations match the selected filter."
             : "Local peak observations only. Time while the app was closed is not inferred.";
         OnPropertyChanged(nameof(HasWindows));
+        OnPropertyChanged(nameof(HasRecordedWindows));
         OnPropertyChanged(nameof(Metrics));
         OnPropertyChanged(nameof(HasComparableHistory));
         OnPropertyChanged(nameof(HasInsufficientComparableHistory));
         OnPropertyChanged(nameof(MetricsText));
+        OnPropertyChanged(nameof(ObservationFilterSummary));
         NotifyMonthSelectionChanged();
     }
 
@@ -188,6 +217,13 @@ public sealed class UsageHistoryViewModel : ObservableObject
         ShowOlderMonthCommand.NotifyCanExecuteChanged();
         ShowNewerMonthCommand.NotifyCanExecuteChanged();
     }
+
+    private bool MatchesObservationFilter(WeeklyUsageWindowEntry entry) => ObservationFilterIndex switch
+    {
+        1 => !entry.IsPartialObservation,
+        2 => entry.IsPartialObservation,
+        _ => true,
+    };
 }
 
 public sealed class MonthlyUsageHistoryGroup

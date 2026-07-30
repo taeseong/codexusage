@@ -7,6 +7,10 @@ namespace CodexUsage.Windows.ViewModels;
 internal sealed class WidgetSummaryViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly UsageViewModel _usageViewModel;
+    private double _widgetOpacity = 1d;
+    private bool _showShortTermUsage = true;
+    private bool _showWeeklyUsage = true;
+    private bool _showWeeklyProgress = true;
     private bool _disposed;
 
     public WidgetSummaryViewModel(UsageViewModel usageViewModel)
@@ -21,35 +25,53 @@ internal sealed class WidgetSummaryViewModel : INotifyPropertyChanged, IDisposab
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(_usageViewModel.MenuSummary))
+            if (!CanRenderSelectedSummary)
             {
-                return _usageViewModel.Weekly.ShowProgress && !_usageViewModel.ShortTerm.ShowProgress
-                    ? $"5H ∞  |  {_usageViewModel.MenuSummary}"
-                    : _usageViewModel.MenuSummary;
+                return _usageViewModel.HasRefreshed
+                    ? _usageViewModel.StatusTitle
+                    : "Checking usage\u2026";
             }
 
-            return _usageViewModel.HasRefreshed
-                ? _usageViewModel.StatusTitle
-                : "Checking usage…";
+            return string.Join(
+                " | ",
+                new[]
+                {
+                    _showShortTermUsage ? GetShortTermSummaryText() : null,
+                    _showWeeklyUsage ? GetWeeklySummaryText() : null,
+                }.Where(static text => !string.IsNullOrWhiteSpace(text)));
         }
     }
 
-    public string LeadingSummaryText => ShowsWeeklySummary
-        ? _usageViewModel.ShortTerm.ShowProgress
-            ? $"5H {_usageViewModel.ShortTerm.UsedText}"
-            : "5H"
+    public string LeadingSummaryText => CanRenderSelectedSummary
+        ? _showShortTermUsage
+            ? _usageViewModel.ShortTerm.ShowProgress
+                ? GetShortTermSummaryText()
+                : "5H"
+            : _showWeeklyUsage
+                ? GetWeeklySummaryText()
+                : SummaryText
         : SummaryText;
 
     public string UnlimitedShortTermText =>
-        ShowsWeeklySummary && !_usageViewModel.ShortTerm.ShowProgress ? "∞" : string.Empty;
+        CanRenderSelectedSummary && _showShortTermUsage && !_usageViewModel.ShortTerm.ShowProgress
+            ? "\u221E"
+            : string.Empty;
 
-    public string SummaryDividerText => ShowsWeeklySummary ? "|" : string.Empty;
+    public string SummaryDividerText =>
+        CanRenderSelectedSummary && _showShortTermUsage && _showWeeklyUsage ? "|" : string.Empty;
 
-    public string TrailingSummaryText => ShowsWeeklySummary
-        ? $"W {_usageViewModel.Weekly.UsedText}{(_usageViewModel.IsShowingStaleData ? " · Stale" : string.Empty)}"
-        : string.Empty;
+    public string TrailingSummaryText =>
+        CanRenderSelectedSummary && _showShortTermUsage && _showWeeklyUsage
+            ? GetWeeklySummaryText()
+            : string.Empty;
 
-    public bool ShowWeeklyProgress => ShowsWeeklySummary && !_usageViewModel.HasNotice;
+    public bool ShowWeeklyProgress =>
+        _showWeeklyProgress &&
+        _showWeeklyUsage &&
+        _usageViewModel.Weekly.ShowProgress &&
+        !_usageViewModel.HasNotice;
+
+    public double WidgetOpacity => _widgetOpacity;
 
     public IReadOnlyList<WidgetProgressSegment> WeeklyProgressSegments =>
         Enumerable.Range(1, 10)
@@ -59,9 +81,11 @@ internal sealed class WidgetSummaryViewModel : INotifyPropertyChanged, IDisposab
                 _usageViewModel.Weekly.UsedPercent >= 95d))
             .ToArray();
 
-    public string ToolTip => _usageViewModel.HasNotice
-        ? $"{_usageViewModel.StatusTitle} · {_usageViewModel.StatusDetail}"
-        : _usageViewModel.TrayToolTip;
+    public string ToolTip => _usageViewModel.HasNotice && !_usageViewModel.IsShowingStaleData
+        ? $"{_usageViewModel.StatusTitle} \u00B7 {_usageViewModel.StatusDetail}"
+        : string.IsNullOrWhiteSpace(SummaryText)
+            ? "Codex Usage"
+            : $"Codex Usage \u00B7 {SummaryText}";
 
     public bool IsBusy => _usageViewModel.IsBusy;
 
@@ -76,6 +100,41 @@ internal sealed class WidgetSummaryViewModel : INotifyPropertyChanged, IDisposab
 
         _disposed = true;
         _usageViewModel.PropertyChanged -= OnUsagePropertyChanged;
+    }
+
+    public void ApplyDisplayPreferences(
+        int opacityPercent,
+        bool showWeeklyProgress,
+        bool showShortTermUsage = true,
+        bool showWeeklyUsage = true)
+    {
+        var opacity = Math.Clamp(opacityPercent, 65, 100) / 100d;
+        if (_widgetOpacity != opacity)
+        {
+            _widgetOpacity = opacity;
+            OnPropertyChanged(nameof(WidgetOpacity));
+        }
+
+        var normalizedShowWeeklyUsage = showWeeklyUsage ||
+            (!showShortTermUsage && !showWeeklyUsage);
+        if (_showShortTermUsage != showShortTermUsage || _showWeeklyUsage != normalizedShowWeeklyUsage)
+        {
+            _showShortTermUsage = showShortTermUsage;
+            _showWeeklyUsage = normalizedShowWeeklyUsage;
+            OnPropertyChanged(nameof(SummaryText));
+            OnPropertyChanged(nameof(LeadingSummaryText));
+            OnPropertyChanged(nameof(UnlimitedShortTermText));
+            OnPropertyChanged(nameof(SummaryDividerText));
+            OnPropertyChanged(nameof(TrailingSummaryText));
+            OnPropertyChanged(nameof(ToolTip));
+        }
+
+        if (_showWeeklyProgress != showWeeklyProgress)
+        {
+            _showWeeklyProgress = showWeeklyProgress;
+        }
+
+        OnPropertyChanged(nameof(ShowWeeklyProgress));
     }
 
     private void OnUsagePropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
@@ -95,5 +154,16 @@ internal sealed class WidgetSummaryViewModel : INotifyPropertyChanged, IDisposab
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private bool ShowsWeeklySummary => _usageViewModel.Weekly.ShowProgress;
+    private bool CanRenderSelectedSummary =>
+        _usageViewModel.HasRefreshed &&
+        (!_usageViewModel.HasNotice || _usageViewModel.IsShowingStaleData);
+
+    private string GetShortTermSummaryText() => _usageViewModel.ShortTerm.ShowProgress
+        ? $"5H {_usageViewModel.ShortTerm.UsedText}"
+        : "5H \u221E";
+
+    private string GetWeeklySummaryText() =>
+        _usageViewModel.Weekly.ShowProgress
+            ? $"W {_usageViewModel.Weekly.UsedText}{(_usageViewModel.IsShowingStaleData ? " \u00B7 Stale" : string.Empty)}"
+            : "W not reported";
 }

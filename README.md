@@ -7,7 +7,9 @@ CodexUsage is a small desktop utility that keeps your Codex usage limits visible
 - Shows short-term and weekly Codex usage in a compact Windows floating widget.
 - Keeps the widget above normal application windows without stealing focus.
 - Supports drag-to-position, click-through lock mode, position and display-state restore, and system-tray controls.
+- Lets you choose 5-hour and weekly widget visibility, then adjust widget size, opacity, weekly progress visibility, and system/light/dark color mode.
 - Can run at Windows sign-in and alert once at 80% and 95% usage within each reset window.
+- Lets you pause usage alerts for a chosen number of hours without disabling the saved alert rules.
 - Opens the detail window when a Windows usage notification is clicked.
 - Provides a Settings window for per-limit alerts, custom thresholds, quiet hours, reset reminders, test notifications, and Windows startup repair.
 - Reports recovered settings damage and can stage safe startup and notification defaults without clearing history or window placement. When settings cannot be read safely, the existing Windows startup registration is preserved until the user reviews and saves.
@@ -17,7 +19,7 @@ CodexUsage is a small desktop utility that keeps your Codex usage limits visible
 - Provides status-specific recovery actions for a missing CLI, sign-in checks, unsupported versions, and transient lookup failures.
 - Restores a recent last-known-good usage snapshot after restart when live lookup is temporarily unavailable.
 - Refreshes immediately after Windows resumes or the network returns, with bounded retry backoff during transient failures.
-- Keeps an optional local history of weekly-limit peak observations and plan changes, with direct month selection and explicit partial-observation labels; it never estimates usage while the app is closed.
+- Keeps an optional local history of weekly-limit peak observations and plan changes, with direct month selection, completed/partial observation filters, and explicit partial-observation labels; it never estimates usage while the app is closed.
 - Restores the detail window size, position, and selected tab between launches.
 - Supports keyboard refresh and tab navigation in the detail window, with Automation names for essential controls.
 - Reads usage through the locally authenticated Codex App Server; it does not require a separate account or API key.

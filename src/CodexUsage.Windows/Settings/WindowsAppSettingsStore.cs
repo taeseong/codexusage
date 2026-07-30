@@ -212,11 +212,19 @@ internal sealed class WindowsAppSettingsStore
             Math.Max(settings.CriticalThresholdPercent, warningThreshold + 1),
             2,
             100);
+        var normalizedShowWeeklyUsage = settings.ShowWidgetWeeklyUsage ||
+            (!settings.ShowWidgetShortTermUsage && !settings.ShowWidgetWeeklyUsage);
         return settings with
         {
             WidgetMode = settings.WidgetMode is WidgetInteractionMode.Locked
                 ? WidgetInteractionMode.Locked
                 : WidgetInteractionMode.Editing,
+            WidgetScalePercent = Math.Clamp(settings.WidgetScalePercent, 75, 150),
+            WidgetOpacityPercent = Math.Clamp(settings.WidgetOpacityPercent, 65, 100),
+            ShowWidgetWeeklyUsage = normalizedShowWeeklyUsage,
+            ThemePreference = settings.ThemePreference is WindowsThemePreference.Light or WindowsThemePreference.Dark
+                ? settings.ThemePreference
+                : WindowsThemePreference.System,
             WarningThresholdPercent = warningThreshold,
             CriticalThresholdPercent = criticalThreshold,
             QuietHoursStart = Math.Clamp(settings.QuietHoursStart, 0, 23),

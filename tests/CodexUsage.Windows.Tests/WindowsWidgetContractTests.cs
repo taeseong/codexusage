@@ -24,9 +24,15 @@ public sealed class WindowsWidgetContractTests
         Assert.Equal("34", window.Attribute("MinHeight")?.Value);
         Assert.Contains(
             window.Descendants(),
+            element => element.Name.LocalName == "Viewbox" &&
+                       element.Attribute("Stretch")?.Value == "Fill");
+        Assert.Contains(
+            window.Descendants(),
             element => element.Attributes().Any(
                            attribute => attribute.Name.LocalName == "Name" &&
                                         attribute.Value == "DragSurface") &&
+                       element.Attribute("Width")?.Value == "160" &&
+                       element.Attribute("Height")?.Value == "34" &&
                        element.Attribute("Padding")?.Value == "6,2");
         Assert.Empty(window.Descendants(ControlsNamespace + "UsageLimitCard"));
         Assert.Contains(
@@ -52,7 +58,9 @@ public sealed class WindowsWidgetContractTests
                        element.Attribute("Click")?.Value == "OnQuitClicked");
 
         var codeBehind = File.ReadAllText(TestAsset("UsageWidgetWindow.cs"));
-        Assert.Contains("new Size(160d, 34d)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("new Size(_logicalWidth, _logicalHeight)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ApplyDisplayScale", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(scalePercent, 75, 150)", codeBehind, StringComparison.Ordinal);
         Assert.Contains(
             window.Descendants().Attributes("Text"),
             attribute => attribute.Value.Contains("SummaryDividerText", StringComparison.Ordinal));
@@ -224,6 +232,9 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains(
             document.Descendants().Attributes("Text"),
             attribute => attribute.Value == "{Binding Version, StringFormat=Version {0}}");
+        Assert.Contains(
+            document.Descendants().Attributes("Text"),
+            attribute => attribute.Value == "{Binding Revision, StringFormat=Build {0}}");
         Assert.Contains(document.Descendants().Attributes("Content"), attribute =>
             attribute.Value == "github.com/taeseong/codexusage");
         Assert.DoesNotContain(document.Descendants().Attributes("Content"), attribute =>

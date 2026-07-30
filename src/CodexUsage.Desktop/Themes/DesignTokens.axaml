@@ -71,6 +71,9 @@
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Foreground" Value="{DynamicResource UsageTextSecondaryBrush}" />
   </Style>
+  <Style Selector="StackPanel.usage-details-content">
+    <Setter Property="Margin" Value="{StaticResource UsagePaddingPage}" />
+  </Style>
   <Style Selector="Border.usage-card">
     <Setter Property="Background" Value="{DynamicResource UsageSurfaceCardBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource UsageBorderBrush}" />

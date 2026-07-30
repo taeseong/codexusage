@@ -13,21 +13,20 @@ public sealed class WidgetSummaryViewModelTests
         var usageViewModel = new UsageViewModel(new StubUsageProvider());
         using var viewModel = new WidgetSummaryViewModel(usageViewModel);
 
-        Assert.Equal("Checking usage…", viewModel.SummaryText);
+        Assert.Equal("Checking usage\u2026", viewModel.SummaryText);
     }
 
     [Fact]
     public async Task WeeklySnapshotWithNoShortTermLimitShowsUnlimitedShortTermSummary()
     {
-        var usageViewModel = new UsageViewModel(
-            new StubUsageProvider(Success(37d)));
+        var usageViewModel = new UsageViewModel(new StubUsageProvider(Success(37d)));
         using var viewModel = new WidgetSummaryViewModel(usageViewModel);
 
         await usageViewModel.RefreshAsync();
 
-        Assert.Equal("5H ∞  |  W 37%", viewModel.SummaryText);
+        Assert.Equal("5H \u221E | W 37%", viewModel.SummaryText);
         Assert.Equal("5H", viewModel.LeadingSummaryText);
-        Assert.Equal("∞", viewModel.UnlimitedShortTermText);
+        Assert.Equal("\u221E", viewModel.UnlimitedShortTermText);
         Assert.Equal("|", viewModel.SummaryDividerText);
         Assert.Equal("W 37%", viewModel.TrailingSummaryText);
         Assert.True(viewModel.ShowWeeklyProgress);
@@ -59,10 +58,7 @@ public sealed class WidgetSummaryViewModelTests
     public async Task AuthenticationFailureShowsActionableStateInsteadOfZeroPercent()
     {
         var usageViewModel = new UsageViewModel(
-            new StubUsageProvider(new CodexUsageResult
-            {
-                Status = CodexUsageStatus.NotAuthenticated,
-            }));
+            new StubUsageProvider(new CodexUsageResult { Status = CodexUsageStatus.NotAuthenticated }));
         using var viewModel = new WidgetSummaryViewModel(usageViewModel);
 
         await usageViewModel.RefreshAsync();
@@ -89,6 +85,82 @@ public sealed class WidgetSummaryViewModelTests
         Assert.False(viewModel.ShowWeeklyProgress);
     }
 
+    [Fact]
+    public async Task DisplayPreferences_ControlWidgetOpacityAndWeeklyGraphVisibility()
+    {
+        var usageViewModel = new UsageViewModel(new StubUsageProvider(Success(37d)));
+        using var viewModel = new WidgetSummaryViewModel(usageViewModel);
+        await usageViewModel.RefreshAsync();
+
+        viewModel.ApplyDisplayPreferences(80, showWeeklyProgress: false);
+
+        Assert.Equal(0.8d, viewModel.WidgetOpacity);
+        Assert.False(viewModel.ShowWeeklyProgress);
+    }
+
+    [Fact]
+    public async Task DisplayPreferences_CanShowEitherWidgetUsageLimit()
+    {
+        var usageViewModel = new UsageViewModel(new StubUsageProvider(Success(37d)));
+        using var viewModel = new WidgetSummaryViewModel(usageViewModel);
+        await usageViewModel.RefreshAsync();
+
+        viewModel.ApplyDisplayPreferences(
+            100,
+            showWeeklyProgress: true,
+            showShortTermUsage: false,
+            showWeeklyUsage: true);
+
+        Assert.Equal("W 37%", viewModel.LeadingSummaryText);
+        Assert.Empty(viewModel.SummaryDividerText);
+        Assert.Empty(viewModel.TrailingSummaryText);
+        Assert.True(viewModel.ShowWeeklyProgress);
+
+        viewModel.ApplyDisplayPreferences(
+            100,
+            showWeeklyProgress: true,
+            showShortTermUsage: true,
+            showWeeklyUsage: false);
+
+        Assert.Equal("5H", viewModel.LeadingSummaryText);
+        Assert.Equal("\u221E", viewModel.UnlimitedShortTermText);
+        Assert.Empty(viewModel.SummaryDividerText);
+        Assert.Empty(viewModel.TrailingSummaryText);
+        Assert.False(viewModel.ShowWeeklyProgress);
+    }
+
+    [Fact]
+    public async Task DisplayPreferences_DoNotLeakHiddenLimitsIntoWidgetTextOrToolTip()
+    {
+        var weeklyUsageViewModel = new UsageViewModel(new StubUsageProvider(Success(37d)));
+        using var weeklyViewModel = new WidgetSummaryViewModel(weeklyUsageViewModel);
+        await weeklyUsageViewModel.RefreshAsync();
+
+        weeklyViewModel.ApplyDisplayPreferences(
+            100,
+            showWeeklyProgress: true,
+            showShortTermUsage: true,
+            showWeeklyUsage: false);
+
+        Assert.DoesNotContain("W 37%", weeklyViewModel.SummaryText, StringComparison.Ordinal);
+        Assert.DoesNotContain("W 37%", weeklyViewModel.ToolTip, StringComparison.Ordinal);
+
+        var shortTermUsageViewModel = new UsageViewModel(new StubUsageProvider(ShortTermOnly(42d)));
+        using var shortTermViewModel = new WidgetSummaryViewModel(shortTermUsageViewModel);
+        await shortTermUsageViewModel.RefreshAsync();
+
+        shortTermViewModel.ApplyDisplayPreferences(
+            100,
+            showWeeklyProgress: true,
+            showShortTermUsage: false,
+            showWeeklyUsage: true);
+
+        Assert.Equal("W not reported", shortTermViewModel.LeadingSummaryText);
+        Assert.DoesNotContain("5H", shortTermViewModel.SummaryText, StringComparison.Ordinal);
+        Assert.DoesNotContain("5H", shortTermViewModel.ToolTip, StringComparison.Ordinal);
+        Assert.False(shortTermViewModel.ShowWeeklyProgress);
+    }
+
     private static CodexUsageResult Success(double usedPercent) =>
         new()
         {
@@ -105,6 +177,26 @@ public sealed class WidgetSummaryViewModelTests
                         usedPercent,
                         TimeSpan.FromDays(7),
                         DateTimeOffset.UtcNow.AddDays(6)),
+                ],
+            },
+        };
+
+    private static CodexUsageResult ShortTermOnly(double usedPercent) =>
+        new()
+        {
+            Status = CodexUsageStatus.Success,
+            Snapshot = new CodexUsageSnapshot
+            {
+                RetrievedAt = DateTimeOffset.UtcNow,
+                Limits =
+                [
+                    new UsageLimit(
+                        "short-term",
+                        "5-hour",
+                        UsageLimitKind.ShortTerm,
+                        usedPercent,
+                        TimeSpan.FromHours(5),
+                        DateTimeOffset.UtcNow.AddHours(4)),
                 ],
             },
         };

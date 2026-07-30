@@ -9,6 +9,7 @@
         Height="660"
         MinWidth="380"
         MinHeight="620"
+        Classes="windows-surface windows-details"
         Background="{DynamicResource UsageSurfaceAppBrush}"
         AutomationProperties.Name="CodexUsage details"
         WindowStartupLocation="CenterScreen">
@@ -25,7 +26,7 @@
     <TabItem Header="Current"
              AutomationProperties.Name="Current usage">
   <ScrollViewer>
-    <StackPanel Margin="{StaticResource UsagePaddingPage}"
+    <StackPanel Classes="usage-details-content"
                 Spacing="{StaticResource UsageSpace4}">
       <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource UsageSpace3}">
         <StackPanel Spacing="{StaticResource UsageSpace1}">
@@ -71,6 +72,7 @@
               Classes.warning="{Binding IsWarningNotice}"
               AutomationProperties.Name="{Binding StatusTitle}"
               AutomationProperties.HelpText="{Binding StatusDetail}"
+              AutomationProperties.LiveSetting="Polite"
               IsVisible="{Binding HasNotice}">
         <StackPanel Spacing="{StaticResource UsageSpace2}">
           <Grid ColumnDefinitions="*,Auto"
@@ -112,7 +114,7 @@
     <TabItem Header="History"
              AutomationProperties.Name="Weekly usage history">
       <ScrollViewer>
-        <StackPanel Margin="{StaticResource UsagePaddingPage}" Spacing="{StaticResource UsageSpace3}"
+        <StackPanel Classes="usage-details-content" Spacing="{StaticResource UsageSpace3}"
                     DataContext="{Binding History}">
           <TextBlock Classes="usage-title" Text="Weekly history" />
           <TextBlock Classes="usage-caption" Text="{Binding StatusText}" TextWrapping="Wrap" />
@@ -128,6 +130,20 @@
           <TextBlock Classes="usage-caption"
                      IsVisible="{Binding HasInsufficientComparableHistory}"
                      Text="{Binding MetricsText}" />
+          <Grid ColumnDefinitions="*,150"
+                ColumnSpacing="8"
+                IsVisible="{Binding HasRecordedWindows}">
+            <TextBlock Classes="usage-caption"
+                       VerticalAlignment="Center"
+                       Text="{Binding ObservationFilterSummary}" />
+            <ComboBox Grid.Column="1"
+                      AutomationProperties.Name="History observation filter"
+                      SelectedIndex="{Binding ObservationFilterIndex}">
+              <ComboBoxItem Content="All observations" />
+              <ComboBoxItem Content="Completed only" />
+              <ComboBoxItem Content="Partial only" />
+            </ComboBox>
+          </Grid>
           <StackPanel Spacing="3" IsVisible="{Binding HasWindows}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
               <Button Classes="usage-action"

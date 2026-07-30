@@ -61,7 +61,21 @@ behavior. JSON evidence and screenshots
 are written under `artifacts\qa\windows-runtime`. It records the actual host and
 screen configuration; it does not substitute a 100% DPI host for mixed-DPI QA.
 
-Pushing a version tag such as `v0.1.2` runs `.github/workflows/release-windows.yml`.
+For a clean-user upgrade check, run the baseline installer first through the
+isolated probe and then the candidate installer. The probe refuses to run if
+CodexUsage is already installed for that Windows user, verifies the registered
+version and installed file version after the upgrade, launches the candidate,
+checks that isolated settings/history/cache/position files remain intact, and
+uninstalls it again:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa-windows-installer-upgrade.ps1 `
+  -BaselineInstallerPath artifacts\installer\CodexUsage-Setup-0.1.1-win-x64.exe `
+  -CandidateInstallerPath artifacts\installer\CodexUsage-Setup-0.1.3-win-x64.exe
+```
+
+Pushing a version tag such as `v0.1.3` runs `.github/workflows/release-windows.yml`.
 The workflow requires the tag, project version, and `docs/RELEASE_NOTES_<version>.md`
-to match before it creates a draft GitHub Release. Review the uploaded installer,
+to match, checks that the tag resolves to the checked-out clean commit, and embeds a
+short source revision in the build metadata before it creates a draft GitHub Release. Review the uploaded installer,
 checksum, and release notes in GitHub before manually publishing the release.

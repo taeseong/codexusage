@@ -8,14 +8,18 @@
         Height="720"
         MinHeight="620"
         WindowStartupLocation="CenterScreen"
+        Classes="windows-surface windows-settings"
         Background="{DynamicResource UsageSurfaceAppBrush}">
-  <Grid RowDefinitions="*,Auto">
-    <ScrollViewer Grid.Row="0">
-      <StackPanel Margin="24,24,24,8" Spacing="12">
-      <StackPanel Spacing="4">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Classes="windows-page-header"
+            Padding="20,16,20,14">
+      <StackPanel Spacing="2">
         <TextBlock Classes="usage-title" Text="Settings" />
         <TextBlock Classes="usage-caption" Text="Windows and usage alert preferences" />
       </StackPanel>
+    </Border>
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Margin="20,16,20,8" Spacing="12">
 
       <Border Classes="usage-card usage-notice warning"
               AutomationProperties.Name="Settings recovery notice"
@@ -48,9 +52,67 @@
                     IsChecked="{Binding UsageAlertsEnabled}"
                     Content="Show usage alerts" />
           <StackPanel Margin="24,0,0,0" Orientation="Horizontal" Spacing="18">
-            <CheckBox IsChecked="{Binding ShortTermAlertsEnabled}" Content="5-hour" />
-            <CheckBox IsChecked="{Binding WeeklyAlertsEnabled}" Content="Weekly" />
+            <CheckBox AutomationProperties.Name="5-hour usage alerts"
+                      IsChecked="{Binding ShortTermAlertsEnabled}"
+                      Content="5-hour" />
+            <CheckBox AutomationProperties.Name="Weekly usage alerts"
+                      IsChecked="{Binding WeeklyAlertsEnabled}"
+                      Content="Weekly" />
           </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="usage-card">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="usage-section" Text="Appearance" />
+          <Grid ColumnDefinitions="*,110" RowDefinitions="Auto,Auto" RowSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="Widget size" />
+            <NumericUpDown Grid.Column="1"
+                           AutomationProperties.Name="Widget size percent"
+                           Minimum="75"
+                           Maximum="150"
+                           Increment="5"
+                           FormatString="0'%'"
+                           Value="{Binding WidgetScalePercent}" />
+            <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="Widget opacity" />
+            <NumericUpDown Grid.Row="1"
+                           Grid.Column="1"
+                           AutomationProperties.Name="Widget opacity percent"
+                           Minimum="65"
+                           Maximum="100"
+                           Increment="5"
+                           FormatString="0'%'"
+                           Value="{Binding WidgetOpacityPercent}" />
+          </Grid>
+          <StackPanel Spacing="6">
+            <TextBlock Classes="usage-caption" Text="Widget contents" />
+            <StackPanel Orientation="Horizontal" Spacing="18">
+              <CheckBox AutomationProperties.Name="Show 5-hour widget usage"
+                        IsChecked="{Binding ShowWidgetShortTermUsage}"
+                        Content="Show 5-hour usage" />
+              <CheckBox AutomationProperties.Name="Show weekly widget usage"
+                        IsChecked="{Binding ShowWidgetWeeklyUsage}"
+                        Content="Show weekly usage" />
+            </StackPanel>
+          </StackPanel>
+          <TextBlock Foreground="{DynamicResource UsageErrorBrush}"
+                     IsVisible="{Binding HasWidgetContentValidationError}"
+                     Text="{Binding ValidationMessage}"
+                     TextWrapping="Wrap" />
+          <CheckBox AutomationProperties.Name="Show weekly widget progress"
+                    IsEnabled="{Binding CanShowWidgetWeeklyProgress}"
+                    IsChecked="{Binding ShowWidgetWeeklyProgress}"
+                    Content="Show weekly progress bar" />
+          <Grid ColumnDefinitions="*,160" ColumnSpacing="8">
+            <TextBlock VerticalAlignment="Center" Text="Color mode" />
+            <ComboBox Grid.Column="1"
+                      AutomationProperties.Name="Color mode"
+                      SelectedIndex="{Binding ThemePreferenceIndex}">
+              <ComboBoxItem Content="Use Windows setting" />
+              <ComboBoxItem Content="Light" />
+              <ComboBoxItem Content="Dark" />
+            </ComboBox>
+          </Grid>
         </StackPanel>
       </Border>
 
@@ -67,13 +129,40 @@
                     Content="Test notification" />
           </Grid>
           <TextBlock Foreground="{DynamicResource UsageErrorBrush}"
-                     IsVisible="{Binding HasValidationError}"
+                     IsVisible="{Binding HasNonWidgetValidationError}"
                      Text="{Binding ValidationMessage}"
                      TextWrapping="Wrap" />
           <TextBlock Foreground="{DynamicResource UsageSuccessBrush}"
                      IsVisible="{Binding HasFeedback}"
                      Text="{Binding FeedbackMessage}"
                      TextWrapping="Wrap" />
+
+          <Border BorderBrush="{DynamicResource UsageBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="usage-caption" Text="{Binding AlertPauseStatusText}" />
+              <Grid ColumnDefinitions="*,90,Auto,Auto" ColumnSpacing="8">
+                <TextBlock VerticalAlignment="Center" Text="Pause alerts for" />
+                <NumericUpDown Grid.Column="1"
+                               AutomationProperties.Name="Pause alerts hours"
+                               Minimum="1"
+                               Maximum="24"
+                               Increment="1"
+                               FormatString="0 'hours'"
+                               Value="{Binding PauseAlertsHours}" />
+                <Button Grid.Column="2"
+                        AutomationProperties.Name="Pause usage alerts"
+                        Classes="usage-action"
+                        Command="{Binding PauseAlertsCommand}"
+                        Content="Pause" />
+                <Button Grid.Column="3"
+                        AutomationProperties.Name="Resume usage alerts"
+                        Classes="usage-action"
+                        IsEnabled="{Binding CanResumeAlerts}"
+                        Command="{Binding ResumeAlertsCommand}"
+                        Content="Resume" />
+              </Grid>
+            </StackPanel>
+          </Border>
 
           <Grid ColumnDefinitions="*,100" RowDefinitions="Auto,Auto" RowSpacing="8">
             <TextBlock VerticalAlignment="Center" Text="Warning threshold" />
@@ -97,7 +186,9 @@
 
           <Border BorderBrush="{DynamicResource UsageBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
             <StackPanel Spacing="8">
-              <CheckBox IsChecked="{Binding ResetReminderEnabled}" Content="Notify before a limit resets" />
+              <CheckBox AutomationProperties.Name="Notify before a limit resets"
+                        IsChecked="{Binding ResetReminderEnabled}"
+                        Content="Notify before a limit resets" />
               <Grid ColumnDefinitions="*,100">
                 <TextBlock VerticalAlignment="Center" Text="Minutes before reset" />
                 <NumericUpDown Grid.Column="1"
@@ -113,7 +204,9 @@
 
           <Border BorderBrush="{DynamicResource UsageBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
             <StackPanel Spacing="8">
-              <CheckBox IsChecked="{Binding QuietHoursEnabled}" Content="Quiet hours" />
+              <CheckBox AutomationProperties.Name="Quiet hours"
+                        IsChecked="{Binding QuietHoursEnabled}"
+                        Content="Quiet hours" />
               <Grid ColumnDefinitions="*,120,Auto,120" ColumnSpacing="8">
                 <TextBlock VerticalAlignment="Center" Text="Local time" />
                 <NumericUpDown Grid.Column="1"
@@ -151,10 +244,11 @@
 
       </StackPanel>
     </ScrollViewer>
-    <Grid Grid.Row="1"
-          Margin="24,8,24,20"
-          ColumnDefinitions="*,Auto,Auto"
-          ColumnSpacing="8">
+    <Border Grid.Row="2"
+            Classes="windows-command-bar"
+            Padding="20,12,20,16">
+      <Grid ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="8">
       <Button Grid.Column="0"
               HorizontalAlignment="Left"
               AutomationProperties.Name="Restore startup and notification defaults"
@@ -170,9 +264,10 @@
               Content="Cancel" />
       <Button Grid.Column="2"
               AutomationProperties.Name="Save settings"
-              Classes="usage-action"
+              Classes="usage-action windows-primary"
               Command="{Binding SaveCommand}"
               Content="Save" />
-    </Grid>
+      </Grid>
+    </Border>
   </Grid>
 </Window>

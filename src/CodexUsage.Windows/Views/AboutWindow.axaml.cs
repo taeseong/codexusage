@@ -13,18 +13,19 @@ public partial class AboutWindow : Window
     private readonly Func<CancellationToken, Task<string>> _diagnosticsProvider;
 
     public AboutWindow()
-        : this("0.1.0", _ => Task.FromResult("Diagnostics unavailable"))
+        : this("0.1.3", "local build", _ => Task.FromResult("Diagnostics unavailable"))
     {
     }
 
     public AboutWindow(
         string version,
+        string revision,
         Func<CancellationToken, Task<string>>? diagnosticsProvider = null)
     {
         InitializeComponent();
         _diagnosticsProvider = diagnosticsProvider ??
             (_ => Task.FromResult("Diagnostics unavailable"));
-        DataContext = new AboutWindowViewModel(version);
+        DataContext = new AboutWindowViewModel(version, revision);
     }
 
     public void SaveRenderedContent(string path)
@@ -82,5 +83,5 @@ public partial class AboutWindow : Window
     private async void OnCopyDiagnostics(object? sender, RoutedEventArgs e) =>
         _ = await CopyDiagnosticsAsync();
 
-    private sealed record AboutWindowViewModel(string Version);
+    private sealed record AboutWindowViewModel(string Version, string Revision);
 }

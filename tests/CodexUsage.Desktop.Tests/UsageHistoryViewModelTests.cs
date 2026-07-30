@@ -144,6 +144,34 @@ public sealed class UsageHistoryViewModelTests
         Assert.StartsWith("3 comparable windows · ", viewModel.MetricsText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ObservationFilter_SwitchesBetweenCompletedAndPartialWindows()
+    {
+        var at = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero);
+        var completed = Entry(at, 40, closure: UsageWindowClosureKind.NormalResetObserved) with
+        {
+            CalculatedWindowStartedAt = at,
+            InitialScheduledResetAt = at.AddDays(7),
+            ObservedDayCount = 7,
+        };
+        var partial = Entry(at.AddDays(-7), 80);
+        var viewModel = new UsageHistoryViewModel(new HistoryStore(new UsageHistoryState
+        {
+            Windows = [completed, partial],
+        }));
+        await viewModel.InitializeAsync();
+
+        viewModel.ObservationFilterIndex = 1;
+        Assert.Equal("Completed observations only", viewModel.ObservationFilterSummary);
+        Assert.Single(viewModel.Windows);
+        Assert.False(viewModel.Windows.Single().IsPartialObservation);
+
+        viewModel.ObservationFilterIndex = 2;
+        Assert.Equal("Partial observations only", viewModel.ObservationFilterSummary);
+        Assert.Single(viewModel.Windows);
+        Assert.True(viewModel.Windows.Single().IsPartialObservation);
+    }
+
     private static WeeklyUsageWindowEntry Entry(
         DateTimeOffset at,
         double peak,

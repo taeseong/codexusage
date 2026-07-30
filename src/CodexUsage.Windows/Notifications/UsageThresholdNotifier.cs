@@ -25,10 +25,12 @@ internal sealed class UsageThresholdNotifier
 
         var alerts = new List<UsageThresholdAlert>();
         var quietHoursActive = IsQuietHoursActive(settings, _timeProvider.GetLocalNow());
+        var alertsPaused = settings.AlertsPausedUntil is { } pausedUntil &&
+            pausedUntil > _timeProvider.GetUtcNow();
         var shortTerm = EvaluateLimit(
             snapshot.Limits.FirstOrDefault(limit => limit.Kind is UsageLimitKind.ShortTerm),
             settings.AlertHistory.ShortTerm,
-            settings.UsageAlertsEnabled && settings.ShortTermAlertsEnabled && !quietHoursActive,
+            settings.UsageAlertsEnabled && settings.ShortTermAlertsEnabled && !quietHoursActive && !alertsPaused,
             settings.WarningThresholdPercent,
             settings.CriticalThresholdPercent,
             settings.ResetReminderEnabled,
@@ -38,7 +40,7 @@ internal sealed class UsageThresholdNotifier
         var weekly = EvaluateLimit(
             snapshot.Limits.FirstOrDefault(limit => limit.Kind is UsageLimitKind.Weekly),
             settings.AlertHistory.Weekly,
-            settings.UsageAlertsEnabled && settings.WeeklyAlertsEnabled && !quietHoursActive,
+            settings.UsageAlertsEnabled && settings.WeeklyAlertsEnabled && !quietHoursActive && !alertsPaused,
             settings.WarningThresholdPercent,
             settings.CriticalThresholdPercent,
             settings.ResetReminderEnabled,

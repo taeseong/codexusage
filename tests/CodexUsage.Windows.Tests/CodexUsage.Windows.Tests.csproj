@@ -40,6 +40,12 @@
     <Content Include="../../src/CodexUsage.Windows/App.axaml.cs"
              Link="TestAssets/WindowsApp.cs"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Windows/App.axaml"
+             Link="TestAssets/App.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../src/CodexUsage.Windows/Themes/WindowsFluentOverrides.axaml"
+             Link="TestAssets/WindowsFluentOverrides.axaml"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/CodexUsage.Windows/app.manifest"
              Link="TestAssets/app.manifest"
              CopyToOutputDirectory="PreserveNewest" />
@@ -51,6 +57,9 @@
              CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/qa-windows-runtime.ps1"
              Link="TestAssets/qa-windows-runtime.ps1"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/qa-windows-installer-upgrade.ps1"
+             Link="TestAssets/qa-windows-installer-upgrade.ps1"
              CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../src/CodexUsage.Windows/CodexUsage.Windows.csproj"
              Link="TestAssets/CodexUsage.Windows.csproj"

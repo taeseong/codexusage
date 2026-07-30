@@ -85,6 +85,39 @@ public sealed class WindowsSettingsAndNotificationTests
     }
 
     [Fact]
+    public void SettingsStore_RoundTripsWidgetAppearanceThemeAndAlertPause()
+    {
+        string? json = null;
+        var store = new WindowsAppSettingsStore(
+            () => "settings.json",
+            _ => json is not null,
+            _ => json!,
+            (_, value) => json = value,
+            _ => { });
+        var pausedUntil = new DateTimeOffset(2026, 8, 1, 15, 0, 0, TimeSpan.Zero);
+
+        Assert.True(store.Save(new WindowsAppSettings
+        {
+            WidgetScalePercent = 125,
+            WidgetOpacityPercent = 80,
+            ShowWidgetShortTermUsage = false,
+            ShowWidgetWeeklyUsage = true,
+            ShowWidgetWeeklyProgress = false,
+            ThemePreference = WindowsThemePreference.Dark,
+            AlertsPausedUntil = pausedUntil,
+        }));
+
+        var restored = store.Load();
+        Assert.Equal(125, restored.WidgetScalePercent);
+        Assert.Equal(80, restored.WidgetOpacityPercent);
+        Assert.False(restored.ShowWidgetShortTermUsage);
+        Assert.True(restored.ShowWidgetWeeklyUsage);
+        Assert.False(restored.ShowWidgetWeeklyProgress);
+        Assert.Equal(WindowsThemePreference.Dark, restored.ThemePreference);
+        Assert.Equal(pausedUntil, restored.AlertsPausedUntil);
+    }
+
+    [Fact]
     public async Task SettingsStore_PreservesCorruptFileAndReturnsSafeDefaults()
     {
         var directory = Path.Combine(Path.GetTempPath(), "CodexUsageTests", Guid.NewGuid().ToString("N"));
@@ -264,6 +297,25 @@ public sealed class WindowsSettingsAndNotificationTests
     }
 
     [Fact]
+    public void SettingsStore_NormalizesWidgetAppearanceAndTheme()
+    {
+        var store = new WindowsAppSettingsStore(
+            () => "settings.json",
+            _ => true,
+            _ => "{\"WidgetScalePercent\":300,\"WidgetOpacityPercent\":2,\"ShowWidgetShortTermUsage\":false,\"ShowWidgetWeeklyUsage\":false,\"ThemePreference\":999}",
+            (_, _) => { },
+            _ => { });
+
+        var settings = store.Load();
+
+        Assert.Equal(150, settings.WidgetScalePercent);
+        Assert.False(settings.ShowWidgetShortTermUsage);
+        Assert.True(settings.ShowWidgetWeeklyUsage);
+        Assert.Equal(65, settings.WidgetOpacityPercent);
+        Assert.Equal(WindowsThemePreference.System, settings.ThemePreference);
+    }
+
+    [Fact]
     public void StartupService_WritesAQuotedExecutablePathAndCanRemoveIt()
     {
         var registry = new FakeStartupRegistry();
@@ -413,6 +465,70 @@ public sealed class WindowsSettingsAndNotificationTests
     }
 
     [Fact]
+    public void SettingsViewModel_SavesWidgetAppearanceAndThemeWithoutChangingRestoreDefaultsScope()
+    {
+        var viewModel = new WindowsSettingsViewModel(new WindowsAppSettings
+        {
+            WidgetScalePercent = 125,
+            WidgetOpacityPercent = 80,
+            ShowWidgetShortTermUsage = false,
+            ShowWidgetWeeklyUsage = true,
+            ShowWidgetWeeklyProgress = false,
+            ThemePreference = WindowsThemePreference.Dark,
+        });
+        WindowsSettingsPreferences? saved = null;
+        viewModel.SaveRequested += preferences => saved = preferences;
+
+        viewModel.RestoreDefaultsCommand.Execute(null);
+        viewModel.SaveCommand.Execute(null);
+
+        Assert.NotNull(saved);
+        Assert.Equal(125, saved.WidgetScalePercent);
+        Assert.Equal(80, saved.WidgetOpacityPercent);
+        Assert.False(saved.ShowWidgetShortTermUsage);
+        Assert.True(saved.ShowWidgetWeeklyUsage);
+        Assert.False(saved.ShowWidgetWeeklyProgress);
+        Assert.Equal(WindowsThemePreference.Dark, saved.ThemePreference);
+    }
+
+    [Fact]
+    public void SettingsViewModel_RequiresAtLeastOneWidgetUsageLimit()
+    {
+        var viewModel = new WindowsSettingsViewModel(new WindowsAppSettings());
+        WindowsSettingsPreferences? saved = null;
+        viewModel.SaveRequested += preferences => saved = preferences;
+        viewModel.ShowWidgetShortTermUsage = false;
+        viewModel.ShowWidgetWeeklyUsage = false;
+
+        viewModel.SaveCommand.Execute(null);
+
+        Assert.Null(saved);
+        Assert.Equal("Choose at least one widget usage limit.", viewModel.ValidationMessage);
+        Assert.True(viewModel.HasWidgetContentValidationError);
+    }
+
+    [Fact]
+    public void SettingsViewModel_RaisesPauseAndResumeAlertCommands()
+    {
+        var until = DateTimeOffset.UtcNow.AddHours(1);
+        var viewModel = new WindowsSettingsViewModel(new WindowsAppSettings
+        {
+            AlertsPausedUntil = until,
+        });
+        var pauseHours = 0;
+        var resumeRequested = false;
+        viewModel.PauseAlertsRequested += hours => pauseHours = hours;
+        viewModel.ResumeAlertsRequested += () => resumeRequested = true;
+
+        viewModel.PauseAlertsHours = 4;
+        viewModel.PauseAlertsCommand.Execute(null);
+        viewModel.ResumeAlertsCommand.Execute(null);
+
+        Assert.Equal(4, pauseHours);
+        Assert.True(resumeRequested);
+    }
+
+    [Fact]
     public void UsageThresholdNotifier_NotifiesOncePerThresholdAndResetWindow()
     {
         var notifier = new UsageThresholdNotifier();
@@ -550,6 +666,19 @@ public sealed class WindowsSettingsAndNotificationTests
         var alerts = notifier.Evaluate(Snapshot(97, ResetAt), settings, out _);
 
         Assert.Empty(alerts);
+    }
+
+    [Fact]
+    public void UsageThresholdNotifier_SuppressesAlertsWhilePaused()
+    {
+        var now = new DateTimeOffset(2026, 7, 29, 12, 0, 0, TimeSpan.Zero);
+        var notifier = new UsageThresholdNotifier(new FixedTimeProvider(now));
+        var settings = new WindowsAppSettings { AlertsPausedUntil = now.AddHours(1) };
+
+        var alerts = notifier.Evaluate(Snapshot(97d, ResetAt), settings, out var history);
+
+        Assert.Empty(alerts);
+        Assert.Equal(0, history.Weekly?.HighestNotifiedPercent);
     }
 
     [Fact]

@@ -47,8 +47,10 @@ internal sealed class WindowsDiagnosticsService
 
     public async Task<string> BuildAsync(
         string appVersion,
+        string buildRevision,
         CodexUsageStatus? usageStatus,
         StartupRegistrationStatus? startupStatus,
+        IReadOnlyList<WindowsDiagnosticEvent>? recentEvents = null,
         CancellationToken cancellationToken = default)
     {
         CodexCliProbeResult cli;
@@ -68,6 +70,7 @@ internal sealed class WindowsDiagnosticsService
         var builder = new StringBuilder()
             .AppendLine("CodexUsage diagnostics")
             .Append("App version: ").AppendLine(appVersion)
+            .Append("Build revision: ").AppendLine(buildRevision)
             .Append("OS: ").AppendLine(_osDescriptionProvider())
             .Append("OS architecture: ").AppendLine(_osArchitectureProvider().ToString())
             .Append("Process architecture: ").AppendLine(_processArchitectureProvider().ToString())
@@ -77,6 +80,21 @@ internal sealed class WindowsDiagnosticsService
             .Append("Startup: ").AppendLine(FormatStartupStatus(startupStatus))
             .Append("Generated at UTC: ")
             .AppendLine(_utcNowProvider().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var recentEvent in recentEvents?.TakeLast(12) ?? [])
+        {
+            builder.Append("Recent event: ")
+                .Append(recentEvent.OccurredAt.ToUniversalTime().ToString(
+                    "yyyy-MM-dd HH:mm:ss 'UTC'",
+                    System.Globalization.CultureInfo.InvariantCulture))
+                .Append(" | ")
+                .Append(recentEvent.Kind);
+            if (recentEvent.UsageStatus is not null)
+            {
+                builder.Append(" | ").Append(recentEvent.UsageStatus);
+            }
+
+            builder.AppendLine();
+        }
         return builder.ToString().TrimEnd();
     }
 

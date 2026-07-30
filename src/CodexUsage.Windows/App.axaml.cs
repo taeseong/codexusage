@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using CodexUsage.Codex;
 using CodexUsage.Core.Usage;
 using CodexUsage.Desktop.ViewModels;
@@ -39,6 +39,7 @@ public partial class App : Application
     private readonly JsonUsageHistoryStore _usageHistoryStore = new();
     private readonly JsonUsageSnapshotCache _usageSnapshotCache = new();
     private readonly WindowsDiagnosticsService _diagnosticsService = new();
+    private readonly WindowsDiagnosticsLog _diagnosticsLog = new();
     private WindowsRefreshRecoveryService? _refreshRecoveryService;
     private UsageHistoryViewModel? _usageHistoryViewModel;
     private WindowsAppSettings _settings = new();
@@ -62,8 +63,10 @@ public partial class App : Application
 
     private void ConfigureWindowsApp(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        _diagnosticsLog.Record(WindowsDiagnosticEventKind.AppStarted);
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         _settings = _settingsStore.Load();
+        ApplyThemePreference(_settings.ThemePreference);
         _settingsWriteGate = new WindowsSettingsWriteGate(
             _settingsStore.LastRecoveryStatus);
         _settingsRecoveryNotice = _settingsStore.LastRecoveryStatus switch
@@ -102,6 +105,7 @@ public partial class App : Application
         {
             DataContext = _widgetSummaryViewModel,
         };
+        ApplyWidgetDisplayPreferences(_settings);
         if (_widgetPositionStore.Load() is { } savedPosition)
         {
             _widgetWindow.RestoreSavedPosition(savedPosition);
@@ -316,6 +320,7 @@ public partial class App : Application
         catch (Exception exception)
         {
             Trace.TraceError("CodexUsage initialization failed: {0}", exception.GetType().Name);
+            _diagnosticsLog.Record(WindowsDiagnosticEventKind.InitializationFailed);
             ShowDetails();
         }
     }
@@ -351,6 +356,16 @@ public partial class App : Application
         }
 
         _trayIcon?.UpdateToolTip(_usageViewModel.TrayToolTip);
+        if (args.PropertyName == nameof(UsageViewModel.LastStatus) &&
+            _usageViewModel.LastStatus is { } usageStatus)
+        {
+            _diagnosticsLog.Record(
+                usageStatus is CodexUsageStatus.Success
+                    ? WindowsDiagnosticEventKind.UsageLookupSucceeded
+                    : WindowsDiagnosticEventKind.UsageLookupFailed,
+                usageStatus);
+        }
+
         if (args.PropertyName != nameof(UsageViewModel.IsCodexNotInstalled))
         {
             return;
@@ -556,7 +571,11 @@ public partial class App : Application
     {
         if (_aboutWindow is null)
         {
-            _aboutWindow = new AboutWindow(GetAppVersion(), BuildDiagnosticsAsync);
+            var provenance = BuildProvenance.FromEntryAssembly();
+            _aboutWindow = new AboutWindow(
+                provenance.Version,
+                provenance.Revision,
+                BuildDiagnosticsAsync);
             _aboutWindow.Closed += (_, _) => _aboutWindow = null;
         }
 
@@ -582,10 +601,13 @@ public partial class App : Application
                 exception.GetType().Name);
         }
 
+        var provenance = BuildProvenance.FromEntryAssembly();
         return await _diagnosticsService.BuildAsync(
-            GetAppVersion(),
+            provenance.Version,
+            provenance.Revision,
             _usageViewModel?.LastStatus,
             startupStatus,
+            _diagnosticsLog.ReadRecent(),
             cancellationToken);
     }
 
@@ -611,6 +633,8 @@ public partial class App : Application
             viewModel.CancelRequested += CloseSettings;
             viewModel.ManageHistoryRequested += OpenHistorySettings;
             viewModel.TestNotificationRequested += ShowTestNotification;
+            viewModel.PauseAlertsRequested += PauseUsageAlerts;
+            viewModel.ResumeAlertsRequested += ResumeUsageAlerts;
             viewModel.RepairStartupRequested += RepairStartupRegistration;
             _settingsWindow = new SettingsWindow
             {
@@ -649,16 +673,26 @@ public partial class App : Application
                 QuietHoursEnd = preferences.QuietHoursEnd,
                 ResetReminderEnabled = preferences.ResetReminderEnabled,
                 ResetReminderMinutes = preferences.ResetReminderMinutes,
+                WidgetScalePercent = preferences.WidgetScalePercent,
+                WidgetOpacityPercent = preferences.WidgetOpacityPercent,
+                ShowWidgetShortTermUsage = preferences.ShowWidgetShortTermUsage,
+                ShowWidgetWeeklyUsage = preferences.ShowWidgetWeeklyUsage,
+                ShowWidgetWeeklyProgress = preferences.ShowWidgetWeeklyProgress,
+                ThemePreference = preferences.ThemePreference,
                 AlertHistory = thresholdsChanged || preferences.ResetAlertHistory
                     ? new UsageAlertHistory()
                     : _settings.AlertHistory,
             };
+            ApplyThemePreference(_settings.ThemePreference);
+            ApplyWidgetDisplayPreferences(_settings);
             _trayIcon?.UpdateStartAtLogin(_settings.StartAtLogin);
             _trayIcon?.UpdateUsageAlerts(_settings.UsageAlertsEnabled);
             if (!PersistSettings(allowRecoveryOverwrite: true))
             {
                 _settings = previousSettings;
                 _startupService.SetEnabled(previousSettings.StartAtLogin);
+                ApplyThemePreference(previousSettings.ThemePreference);
+                ApplyWidgetDisplayPreferences(previousSettings);
                 _trayIcon?.UpdateStartAtLogin(previousSettings.StartAtLogin);
                 _trayIcon?.UpdateUsageAlerts(previousSettings.UsageAlertsEnabled);
                 if (_settingsWindow?.DataContext is WindowsSettingsViewModel saveViewModel)
@@ -706,6 +740,58 @@ public partial class App : Application
         }
     }
 
+    private void PauseUsageAlerts(int hours)
+    {
+        if (_settingsWindow?.DataContext is not WindowsSettingsViewModel viewModel)
+        {
+            return;
+        }
+
+        if (!_settingsWriteGate.CanApplyAutomaticChange)
+        {
+            viewModel.ShowExternalError("Review and save settings before pausing alerts.");
+            return;
+        }
+
+        var previousSettings = _settings;
+        _settings = _settings with { AlertsPausedUntil = DateTimeOffset.Now.AddHours(hours) };
+        if (!PersistSettings())
+        {
+            _settings = previousSettings;
+            viewModel.ShowExternalError("Unable to pause alerts.");
+            return;
+        }
+
+        viewModel.UpdateAlertsPausedUntil(_settings.AlertsPausedUntil);
+        viewModel.ShowFeedback($"Alerts paused for {hours} {(hours == 1 ? "hour" : "hours")}.");
+    }
+
+    private void ResumeUsageAlerts()
+    {
+        if (_settingsWindow?.DataContext is not WindowsSettingsViewModel viewModel)
+        {
+            return;
+        }
+
+        if (!_settingsWriteGate.CanApplyAutomaticChange)
+        {
+            viewModel.ShowExternalError("Review and save settings before resuming alerts.");
+            return;
+        }
+
+        var previousSettings = _settings;
+        _settings = _settings with { AlertsPausedUntil = null };
+        if (!PersistSettings())
+        {
+            _settings = previousSettings;
+            viewModel.ShowExternalError("Unable to resume alerts.");
+            return;
+        }
+
+        viewModel.UpdateAlertsPausedUntil(null);
+        viewModel.ShowFeedback("Alerts resumed.");
+    }
+
     private void RepairStartupRegistration(bool enabled)
     {
         if (_settingsWindow?.DataContext is not WindowsSettingsViewModel viewModel)
@@ -730,15 +816,32 @@ public partial class App : Application
 
     private void CloseSettings() => _settingsWindow?.Close();
 
+    private void ApplyWidgetDisplayPreferences(WindowsAppSettings settings)
+    {
+        _widgetSummaryViewModel?.ApplyDisplayPreferences(
+            settings.WidgetOpacityPercent,
+            settings.ShowWidgetWeeklyProgress,
+            settings.ShowWidgetShortTermUsage,
+            settings.ShowWidgetWeeklyUsage);
+        _widgetWindow?.ApplyDisplayScale(settings.WidgetScalePercent);
+    }
+
+    private void ApplyThemePreference(WindowsThemePreference preference)
+    {
+        RequestedThemeVariant = preference switch
+        {
+            WindowsThemePreference.Light => ThemeVariant.Light,
+            WindowsThemePreference.Dark => ThemeVariant.Dark,
+            _ => ThemeVariant.Default,
+        };
+    }
+
     private void OpenHistorySettings()
     {
         CloseSettings();
         _detailsWindow?.SelectHistoryTab();
         ShowDetails();
     }
-
-    private static string GetAppVersion() =>
-        Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3) ?? "0.1.2";
 
     private async void Quit(IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -748,6 +851,7 @@ public partial class App : Application
         }
 
         _isQuitting = true;
+        _diagnosticsLog.Record(WindowsDiagnosticEventKind.AppStopped);
         _refreshRecoveryService?.Dispose();
         _refreshRecoveryService = null;
         if (_usageViewModel is not null)

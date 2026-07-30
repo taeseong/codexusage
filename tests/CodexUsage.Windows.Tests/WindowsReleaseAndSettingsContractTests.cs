@@ -15,6 +15,9 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains(".sha256", script, StringComparison.Ordinal);
         Assert.Contains("Publish output is in use", script, StringComparison.Ordinal);
         Assert.Contains("-Filter \"*.pdb\"", script, StringComparison.Ordinal);
+        Assert.Contains("[string]$ReleaseTag", script, StringComparison.Ordinal);
+        Assert.Contains("Release packaging requires a clean Git working tree", script, StringComparison.Ordinal);
+        Assert.Contains("SourceRevisionId", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -51,6 +54,28 @@ public sealed class WindowsReleaseAndSettingsContractTests
     }
 
     [Fact]
+    public void InstallerUpgradeQaScript_RequiresACleanTestAccountAndPreservesLocalState()
+    {
+        var script = File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "TestAssets", "qa-windows-installer-upgrade.ps1"));
+
+        Assert.Contains("BaselineInstallerPath", script, StringComparison.Ordinal);
+        Assert.Contains("CandidateInstallerPath", script, StringComparison.Ordinal);
+        Assert.Contains("clean test account", script, StringComparison.Ordinal);
+        Assert.Contains("/VERYSILENT", script, StringComparison.Ordinal);
+        Assert.Contains("DisplayVersion", script, StringComparison.Ordinal);
+        Assert.Contains("StateHashesPreserved", script, StringComparison.Ordinal);
+        Assert.Contains("candidate-widget.png", script, StringComparison.Ordinal);
+        Assert.Contains("PDB files", script, StringComparison.Ordinal);
+        Assert.Contains("upgrade-report.json", script, StringComparison.Ordinal);
+        Assert.Contains("$candidateProcess.Kill($true)", script, StringComparison.Ordinal);
+        Assert.Contains("$probeFailure", script, StringComparison.Ordinal);
+        Assert.Contains("$cleanupFailure", script, StringComparison.Ordinal);
+        Assert.Contains("CleanupSucceeded", script, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $installDirectory -Recurse -Force", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ReleaseWorkflow_ValidatesVersionAndPublishesInstallerWithChecksum()
     {
         var workflow = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "release-windows.yml"));
@@ -67,6 +92,10 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.DoesNotContain("TrimStart", workflow, StringComparison.Ordinal);
         Assert.Contains("$tag = $env:RELEASE_TAG", workflow, StringComparison.Ordinal);
         Assert.Contains("$version = $env:RELEASE_TAG.Substring(1)", workflow, StringComparison.Ordinal);
+        Assert.Contains("fetch-depth: 0", workflow, StringComparison.Ordinal);
+        Assert.Contains("Release tag $tag must resolve to the checked-out commit.", workflow, StringComparison.Ordinal);
+        Assert.Contains("Release packaging requires a clean Git working tree.", workflow, StringComparison.Ordinal);
+        Assert.Contains("-ReleaseTag $env:RELEASE_TAG", workflow, StringComparison.Ordinal);
         var directRefExpressions = workflow
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Where(line => line.Contains("${{ github.ref_name }}", StringComparison.Ordinal))
@@ -102,7 +131,7 @@ public sealed class WindowsReleaseAndSettingsContractTests
             _ => throw new ArgumentOutOfRangeException(nameof(form)),
         };
 
-        Assert.Equal("v0.1.2", expectedTag);
+        Assert.Equal("v0.1.3", expectedTag);
         Assert.Equal(expected, string.Equals(candidate, expectedTag, StringComparison.Ordinal));
     }
 
@@ -123,7 +152,7 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("Weekly", contents);
         Assert.Contains("Notify before a limit resets", contents);
         Assert.Contains("Quiet hours", contents);
-        Assert.Equal(5, window.Descendants(avalonia + "NumericUpDown").Count());
+        Assert.Equal(8, window.Descendants(avalonia + "NumericUpDown").Count());
         Assert.Contains(
             window.Descendants(avalonia + "Button"),
             element => (string?)element.Attribute("Content") == "Manage");
@@ -146,9 +175,66 @@ public sealed class WindowsReleaseAndSettingsContractTests
                 (string?)element.Attribute("IsVisible") == "{Binding HasRecoveryNotice}" &&
                 (string?)element.Attribute("AutomationProperties.Name")
                     == "Settings recovery notice");
+        Assert.Contains(
+            window.Descendants(avalonia + "NumericUpDown"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Widget size percent");
+        Assert.Contains(
+            window.Descendants(avalonia + "NumericUpDown"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Widget opacity percent");
+        Assert.Contains(
+            window.Descendants(avalonia + "ComboBox"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Color mode");
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Pause usage alerts");
+        Assert.Contains(
+            window.Descendants(avalonia + "CheckBox"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Show 5-hour widget usage");
+        Assert.Contains(
+            window.Descendants(avalonia + "CheckBox"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Show weekly widget usage");
+        Assert.Contains(
+            window.Descendants(avalonia + "TextBlock"),
+            element => (string?)element.Attribute("IsVisible") == "{Binding HasWidgetContentValidationError}" &&
+                       (string?)element.Attribute("Text") == "{Binding ValidationMessage}");
+        Assert.Contains(
+            window.Descendants(avalonia + "TextBlock"),
+            element => (string?)element.Attribute("IsVisible") == "{Binding HasNonWidgetValidationError}" &&
+                       (string?)element.Attribute("Text") == "{Binding ValidationMessage}");
         Assert.All(
             window.Descendants(avalonia + "NumericUpDown"),
             element => Assert.False(string.IsNullOrWhiteSpace(
                 (string?)element.Attribute("AutomationProperties.Name"))));
+        Assert.Contains("windows-surface", (string?)window.Root?.Attribute("Classes"));
+        Assert.Contains(
+            window.Descendants(avalonia + "Border"),
+            element => ((string?)element.Attribute("Classes"))?.Contains(
+                "windows-page-header",
+                StringComparison.Ordinal) is true);
+        Assert.Contains(
+            window.Descendants(avalonia + "Border"),
+            element => ((string?)element.Attribute("Classes"))?.Contains(
+                "windows-command-bar",
+                StringComparison.Ordinal) is true);
+        Assert.Contains(
+            window.Descendants(avalonia + "Button"),
+            element => (string?)element.Attribute("Content") == "Save" &&
+                       ((string?)element.Attribute("Classes"))?.Contains(
+                           "windows-primary",
+                           StringComparison.Ordinal) is true);
+    }
+
+    [Fact]
+    public void WindowsApp_LoadsTheWindowsFluentSurfaceOverrides()
+    {
+        var app = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "App.axaml"));
+        var styles = File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "TestAssets", "WindowsFluentOverrides.axaml"));
+
+        Assert.Contains("WindowsFluentOverrides.axaml", app, StringComparison.Ordinal);
+        Assert.Contains("Window.windows-surface", styles, StringComparison.Ordinal);
+        Assert.Contains("WindowsPageHeaderBrush", styles, StringComparison.Ordinal);
+        Assert.Contains("WindowsAccentForegroundBrush", styles, StringComparison.Ordinal);
+        Assert.Contains("Button.windows-primary", styles, StringComparison.Ordinal);
     }
 }

@@ -8,6 +8,18 @@ internal sealed record WindowsAppSettings
 
     public WidgetInteractionMode WidgetMode { get; init; } = WidgetInteractionMode.Editing;
 
+    public int WidgetScalePercent { get; init; } = 100;
+
+    public int WidgetOpacityPercent { get; init; } = 100;
+
+    public bool ShowWidgetShortTermUsage { get; init; } = true;
+
+    public bool ShowWidgetWeeklyUsage { get; init; } = true;
+
+    public bool ShowWidgetWeeklyProgress { get; init; } = true;
+
+    public WindowsThemePreference ThemePreference { get; init; } = WindowsThemePreference.System;
+
     public bool StartAtLogin { get; init; }
 
     public bool UsageAlertsEnabled { get; init; } = true;
@@ -30,9 +42,18 @@ internal sealed record WindowsAppSettings
 
     public int ResetReminderMinutes { get; init; } = 30;
 
+    public DateTimeOffset? AlertsPausedUntil { get; init; }
+
     public DetailsWindowSettings DetailsWindow { get; init; } = new();
 
     public UsageAlertHistory AlertHistory { get; init; } = new();
+}
+
+internal enum WindowsThemePreference
+{
+    System,
+    Light,
+    Dark,
 }
 
 internal sealed record DetailsWindowSettings

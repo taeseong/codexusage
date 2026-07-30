@@ -15,6 +15,14 @@ public sealed class UsageWindowLayoutTests
         Assert.Equal("660", (string?)window.Attribute("Height"));
         Assert.Equal("380", (string?)window.Attribute("MinWidth"));
         Assert.Equal("620", (string?)window.Attribute("MinHeight"));
+        Assert.Contains("windows-surface", (string?)window.Attribute("Classes"));
+        Assert.Contains("windows-details", (string?)window.Attribute("Classes"));
+        Assert.Equal(
+            2,
+            window.Descendants()
+                .Count(element => ((string?)element.Attribute("Classes"))?.Contains(
+                    "usage-details-content",
+                    StringComparison.Ordinal) is true));
     }
 
     [Fact]
@@ -116,6 +124,10 @@ public sealed class UsageWindowLayoutTests
         Assert.Contains(
             window.Descendants(avalonia + "TextBlock"),
             element => (string?)element.Attribute("Text") == "{Binding DateRangeText}");
+        Assert.Contains(
+            window.Descendants(avalonia + "ComboBox"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "History observation filter" &&
+                       (string?)element.Attribute("SelectedIndex") == "{Binding ObservationFilterIndex}");
     }
 
     [Fact]
@@ -193,6 +205,9 @@ public sealed class UsageWindowLayoutTests
             window.Descendants(avalonia + "Border"),
             element => (string?)element.Attribute("AutomationProperties.Name")
                 == "{Binding AccessibilitySummaryText}");
+        Assert.Contains(
+            window.Descendants(avalonia + "Border"),
+            element => (string?)element.Attribute("AutomationProperties.LiveSetting") == "Polite");
         Assert.Contains(
             window.Descendants(avalonia + "TextBlock"),
             element => (string?)element.Attribute("Text")

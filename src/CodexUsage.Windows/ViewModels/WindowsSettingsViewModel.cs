@@ -7,6 +7,7 @@ namespace CodexUsage.Windows.ViewModels;
 
 internal sealed class WindowsSettingsViewModel : ObservableObject
 {
+    private const string WidgetContentValidationMessage = "Choose at least one widget usage limit.";
     private bool _startAtLogin;
     private bool _usageAlertsEnabled;
     private bool _shortTermAlertsEnabled;
@@ -18,11 +19,19 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
     private decimal _quietHoursEnd;
     private bool _resetReminderEnabled;
     private decimal _resetReminderMinutes;
+    private decimal _widgetScalePercent;
+    private decimal _widgetOpacityPercent;
+    private bool _showWidgetShortTermUsage;
+    private bool _showWidgetWeeklyUsage;
+    private bool _showWidgetWeeklyProgress;
+    private int _themePreferenceIndex;
     private string _validationMessage = string.Empty;
     private string _feedbackMessage = string.Empty;
     private StartupRegistrationStatus? _startupStatus;
     private readonly bool _persistedStartAtLogin;
     private bool _resetAlertHistoryOnSave;
+    private decimal _pauseAlertsHours = 1;
+    private DateTimeOffset? _alertsPausedUntil;
 
     public WindowsSettingsViewModel(
         WindowsAppSettings settings,
@@ -41,6 +50,15 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         _quietHoursEnd = settings.QuietHoursEnd;
         _resetReminderEnabled = settings.ResetReminderEnabled;
         _resetReminderMinutes = settings.ResetReminderMinutes;
+        _widgetScalePercent = settings.WidgetScalePercent;
+        _widgetOpacityPercent = settings.WidgetOpacityPercent;
+        _showWidgetShortTermUsage = settings.ShowWidgetShortTermUsage;
+        _showWidgetWeeklyUsage = settings.ShowWidgetWeeklyUsage;
+        _showWidgetWeeklyProgress = settings.ShowWidgetWeeklyProgress;
+        _themePreferenceIndex = (int)settings.ThemePreference;
+        _alertsPausedUntil = settings.AlertsPausedUntil is { } pausedUntil && pausedUntil > DateTimeOffset.Now
+            ? pausedUntil
+            : null;
         _startupStatus = startupStatus;
         RecoveryNotice = recoveryNotice ?? string.Empty;
         SaveCommand = new RelayCommand(Save);
@@ -48,6 +66,8 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         RestoreDefaultsCommand = new RelayCommand(RestoreDefaults);
         ManageHistoryCommand = new RelayCommand(() => ManageHistoryRequested?.Invoke());
         TestNotificationCommand = new RelayCommand(() => TestNotificationRequested?.Invoke());
+        PauseAlertsCommand = new RelayCommand(PauseAlerts, () => PauseAlertsHours is >= 1 and <= 24);
+        ResumeAlertsCommand = new RelayCommand(ResumeAlerts, () => AlertsPausedUntil is not null);
         RepairStartupCommand = new RelayCommand(
             RepairStartup,
             () => CanRepairStartup);
@@ -57,6 +77,8 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
     public event Action? CancelRequested;
     public event Action? ManageHistoryRequested;
     public event Action? TestNotificationRequested;
+    public event Action<int>? PauseAlertsRequested;
+    public event Action? ResumeAlertsRequested;
     public event Action<bool>? RepairStartupRequested;
 
     public IRelayCommand SaveCommand { get; }
@@ -64,6 +86,8 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
     public IRelayCommand RestoreDefaultsCommand { get; }
     public IRelayCommand ManageHistoryCommand { get; }
     public IRelayCommand TestNotificationCommand { get; }
+    public IRelayCommand PauseAlertsCommand { get; }
+    public IRelayCommand ResumeAlertsCommand { get; }
     public IRelayCommand RepairStartupCommand { get; }
 
     public bool StartAtLogin
@@ -138,6 +162,82 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         set => SetProperty(ref _resetReminderMinutes, value);
     }
 
+    public decimal WidgetScalePercent
+    {
+        get => _widgetScalePercent;
+        set => SetProperty(ref _widgetScalePercent, value);
+    }
+
+    public decimal WidgetOpacityPercent
+    {
+        get => _widgetOpacityPercent;
+        set => SetProperty(ref _widgetOpacityPercent, value);
+    }
+
+    public bool ShowWidgetWeeklyProgress
+    {
+        get => _showWidgetWeeklyProgress;
+        set => SetProperty(ref _showWidgetWeeklyProgress, value);
+    }
+
+    public bool ShowWidgetShortTermUsage
+    {
+        get => _showWidgetShortTermUsage;
+        set => SetProperty(ref _showWidgetShortTermUsage, value);
+    }
+
+    public bool ShowWidgetWeeklyUsage
+    {
+        get => _showWidgetWeeklyUsage;
+        set
+        {
+            if (SetProperty(ref _showWidgetWeeklyUsage, value))
+            {
+                OnPropertyChanged(nameof(CanShowWidgetWeeklyProgress));
+            }
+        }
+    }
+
+    public bool CanShowWidgetWeeklyProgress => ShowWidgetWeeklyUsage;
+
+    public int ThemePreferenceIndex
+    {
+        get => _themePreferenceIndex;
+        set => SetProperty(ref _themePreferenceIndex, value);
+    }
+
+    public decimal PauseAlertsHours
+    {
+        get => _pauseAlertsHours;
+        set
+        {
+            if (SetProperty(ref _pauseAlertsHours, value))
+            {
+                PauseAlertsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public DateTimeOffset? AlertsPausedUntil
+    {
+        get => _alertsPausedUntil;
+        private set
+        {
+            if (SetProperty(ref _alertsPausedUntil, value))
+            {
+                OnPropertyChanged(nameof(AlertPauseStatusText));
+                OnPropertyChanged(nameof(CanResumeAlerts));
+                ResumeAlertsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool CanResumeAlerts => AlertsPausedUntil is not null;
+
+    public string AlertPauseStatusText => AlertsPausedUntil is { } pausedUntil
+        ? $"Alerts paused until {pausedUntil.ToLocalTime():HH:mm}."
+        : "Alerts are active.";
+
     public string ValidationMessage
     {
         get => _validationMessage;
@@ -146,11 +246,19 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
             if (SetProperty(ref _validationMessage, value))
             {
                 OnPropertyChanged(nameof(HasValidationError));
+                OnPropertyChanged(nameof(HasWidgetContentValidationError));
+                OnPropertyChanged(nameof(HasNonWidgetValidationError));
             }
         }
     }
 
     public bool HasValidationError => !string.IsNullOrEmpty(ValidationMessage);
+
+    public bool HasWidgetContentValidationError =>
+        string.Equals(ValidationMessage, WidgetContentValidationMessage, StringComparison.Ordinal);
+
+    public bool HasNonWidgetValidationError =>
+        HasValidationError && !HasWidgetContentValidationError;
 
     public string FeedbackMessage
     {
@@ -205,6 +313,11 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         NotifyStartupStatusChanged();
     }
 
+    public void UpdateAlertsPausedUntil(DateTimeOffset? pausedUntil) =>
+        AlertsPausedUntil = pausedUntil is { } value && value > DateTimeOffset.Now
+            ? value
+            : null;
+
     private void Save()
     {
         var warning = decimal.ToInt32(WarningThresholdPercent);
@@ -212,15 +325,23 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         var quietStart = decimal.ToInt32(QuietHoursStart);
         var quietEnd = decimal.ToInt32(QuietHoursEnd);
         var resetMinutes = decimal.ToInt32(ResetReminderMinutes);
+        var widgetScale = decimal.ToInt32(WidgetScalePercent);
+        var widgetOpacity = decimal.ToInt32(WidgetOpacityPercent);
         if (warning is < 1 or > 99 ||
             critical is < 2 or > 100 ||
             warning >= critical ||
             quietStart is < 0 or > 23 ||
             quietEnd is < 0 or > 23 ||
             QuietHoursEnabled && quietStart == quietEnd ||
-            resetMinutes is < 5 or > 240)
+            resetMinutes is < 5 or > 240 ||
+            widgetScale is < 75 or > 150 ||
+            widgetOpacity is < 65 or > 100 ||
+            !ShowWidgetShortTermUsage && !ShowWidgetWeeklyUsage ||
+            ThemePreferenceIndex is < 0 or > 2)
         {
-            ValidationMessage = "Check thresholds, quiet hours, and reset reminder values.";
+            ValidationMessage = !ShowWidgetShortTermUsage && !ShowWidgetWeeklyUsage
+                ? WidgetContentValidationMessage
+                : "Check appearance, thresholds, quiet hours, and reset reminder values.";
             return;
         }
 
@@ -238,6 +359,12 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
             quietEnd,
             ResetReminderEnabled,
             resetMinutes,
+            widgetScale,
+            widgetOpacity,
+            ShowWidgetShortTermUsage,
+            ShowWidgetWeeklyUsage,
+            ShowWidgetWeeklyProgress,
+            (WindowsThemePreference)ThemePreferenceIndex,
             _resetAlertHistoryOnSave));
     }
 
@@ -268,6 +395,16 @@ internal sealed class WindowsSettingsViewModel : ObservableObject
         }
     }
 
+    private void PauseAlerts()
+    {
+        if (PauseAlertsHours is >= 1 and <= 24)
+        {
+            PauseAlertsRequested?.Invoke(decimal.ToInt32(PauseAlertsHours));
+        }
+    }
+
+    private void ResumeAlerts() => ResumeAlertsRequested?.Invoke();
+
     private void NotifyStartupStatusChanged()
     {
         OnPropertyChanged(nameof(StartupStatusText));
@@ -288,4 +425,10 @@ internal sealed record WindowsSettingsPreferences(
     int QuietHoursEnd,
     bool ResetReminderEnabled,
     int ResetReminderMinutes,
+    int WidgetScalePercent,
+    int WidgetOpacityPercent,
+    bool ShowWidgetShortTermUsage,
+    bool ShowWidgetWeeklyUsage,
+    bool ShowWidgetWeeklyProgress,
+    WindowsThemePreference ThemePreference,
     bool ResetAlertHistory);

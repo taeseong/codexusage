@@ -47,6 +47,9 @@
       <TextBlock Classes="usage-caption"
                  HorizontalAlignment="Center"
                  Text="{Binding Version, StringFormat=Version {0}}" />
+      <TextBlock Classes="usage-caption"
+                 HorizontalAlignment="Center"
+                 Text="{Binding Revision, StringFormat=Build {0}}" />
       <Button Classes="github-link"
               HorizontalAlignment="Center"
               Click="OnOpenGitHub"

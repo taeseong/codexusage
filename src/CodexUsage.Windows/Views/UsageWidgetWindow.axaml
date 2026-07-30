@@ -37,14 +37,21 @@
       <Setter Property="Background" Value="{DynamicResource UsageErrorBrush}" />
     </Style>
   </Window.Styles>
-  <Border x:Name="DragSurface"
-          Background="{DynamicResource WindowsWidgetSurfaceBrush}"
-          BorderBrush="{DynamicResource UsageBorderBrush}"
-          BorderThickness="1"
-          CornerRadius="10"
-          Padding="6,2"
-          PointerPressed="OnDragSurfacePointerPressed"
-          ToolTip.Tip="{Binding ToolTip}">
+  <Viewbox Stretch="Fill"
+           HorizontalAlignment="Stretch"
+           VerticalAlignment="Stretch">
+    <Border x:Name="DragSurface"
+            AutomationProperties.Name="Codex usage widget"
+            Width="160"
+            Height="34"
+            Background="{DynamicResource WindowsWidgetSurfaceBrush}"
+            BorderBrush="{DynamicResource UsageBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            Opacity="{Binding WidgetOpacity}"
+            Padding="6,2"
+            PointerPressed="OnDragSurfacePointerPressed"
+            ToolTip.Tip="{Binding ToolTip}">
     <Border.ContextMenu>
       <ContextMenu>
         <MenuItem Header="Quit"
@@ -144,5 +151,6 @@
                VerticalAlignment="Center" />
 
     </Grid>
-  </Border>
+    </Border>
+  </Viewbox>
 </Window>

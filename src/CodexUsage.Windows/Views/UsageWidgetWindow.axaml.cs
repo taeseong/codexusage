@@ -17,6 +17,8 @@ public partial class UsageWidgetWindow : Window
     private WindowsTopmostGuard? _topmostGuard;
     private WidgetPositionRestorePoint? _restoredPosition;
     private bool _allowClose;
+    private double _logicalWidth = 160d;
+    private double _logicalHeight = 34d;
 
     public UsageWidgetWindow()
         : this(new WidgetInteractionState())
@@ -38,6 +40,18 @@ public partial class UsageWidgetWindow : Window
             Show();
         }
 
+        ApplyNativeState();
+    }
+
+    public void ApplyDisplayScale(int scalePercent)
+    {
+        var scale = Math.Clamp(scalePercent, 75, 150) / 100d;
+        _logicalWidth = 160d * scale;
+        _logicalHeight = 34d * scale;
+        Width = _logicalWidth;
+        Height = _logicalHeight;
+        MinWidth = _logicalWidth;
+        MinHeight = _logicalHeight;
         ApplyNativeState();
     }
 
@@ -178,7 +192,7 @@ public partial class UsageWidgetWindow : Window
             _windowController.Apply(
                 this,
                 _interactionState.IsClickThrough,
-                new Size(160d, 34d));
+                new Size(_logicalWidth, _logicalHeight));
         }
         catch (Exception exception) when (
             exception is Win32Exception or InvalidOperationException or PlatformNotSupportedException)
