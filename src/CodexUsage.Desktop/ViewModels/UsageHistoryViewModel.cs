@@ -58,6 +58,7 @@ public sealed class UsageHistoryViewModel : ObservableObject
     public bool IsClearConfirmationVisible { get => _isClearConfirmationVisible; private set => SetProperty(ref _isClearConfirmationVisible, value); }
     public bool HasWindows => Windows.Count > 0;
     public bool HasRecordedWindows => _state.Windows.Count > 0;
+    public IReadOnlyList<WeeklyUsageWindowEntry> ExportableWindows => _state.Windows;
     public MonthlyUsageHistoryGroup? SelectedMonthGroup
     {
         get => MonthlyGroups.Count == 0
@@ -183,12 +184,19 @@ public sealed class UsageHistoryViewModel : ObservableObject
             : "Local peak observations only. Time while the app was closed is not inferred.";
         OnPropertyChanged(nameof(HasWindows));
         OnPropertyChanged(nameof(HasRecordedWindows));
+        OnPropertyChanged(nameof(ExportableWindows));
         OnPropertyChanged(nameof(Metrics));
         OnPropertyChanged(nameof(HasComparableHistory));
         OnPropertyChanged(nameof(HasInsufficientComparableHistory));
         OnPropertyChanged(nameof(MetricsText));
         OnPropertyChanged(nameof(ObservationFilterSummary));
         NotifyMonthSelectionChanged();
+    }
+
+    public void SetExportStatus(string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        StatusText = message;
     }
 
     private void ShowOlderMonth()

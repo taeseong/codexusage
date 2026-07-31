@@ -13,6 +13,7 @@ public sealed class LiveCodexUsageProvider : ICodexUsageProvider
     private readonly IAppServerSessionFactory _sessionFactory;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _requestTimeout;
+    private string? _lastWorkingExecutablePath;
 
     public LiveCodexUsageProvider(
         CodexExecutableLocator? locator = null,
@@ -40,12 +41,13 @@ public sealed class LiveCodexUsageProvider : ICodexUsageProvider
 
     public async Task<CodexUsageResult> GetUsageAsync(CancellationToken cancellationToken = default)
     {
-        var executablePaths = _locator.FindAll();
+        var executablePaths = PrioritizeLastWorkingExecutable(_locator.FindAll());
         if (executablePaths.Count == 0)
         {
             return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable was not found on PATH.");
         }
 
+        CodexUsageResult? lastRecoverableFailure = null;
         foreach (var executablePath in executablePaths)
         {
             try
@@ -60,49 +62,50 @@ public sealed class LiveCodexUsageProvider : ICodexUsageProvider
 
                 var rateLimits = await client.ReadRateLimitsAsync(cancellationToken).ConfigureAwait(false);
                 var snapshot = RateLimitMapper.Map(account, rateLimits, _timeProvider.GetUtcNow());
+                Volatile.Write(ref _lastWorkingExecutablePath, executablePath);
                 return new CodexUsageResult { Status = CodexUsageStatus.Success, Snapshot = snapshot };
-            }
-            catch (Win32Exception) when (executablePath != executablePaths[^1])
-            {
-                // A Store package can leave an unusable codex.exe on PATH while npm's
-                // codex.cmd works. Try the next discovered local CLI without using PowerShell.
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return Failure(CodexUsageStatus.Cancelled, "Usage lookup was cancelled.");
             }
-            catch (TimeoutException)
+            catch (Exception exception) when (IsRecoverableCandidateFailure(exception))
             {
-                return Failure(CodexUsageStatus.TimedOut, "Codex App Server did not respond before the timeout.");
-            }
-            catch (AppServerResponseFormatException)
-            {
-                return Failure(CodexUsageStatus.ResponseFormatChanged, "Codex App Server returned an unrecognized response shape.");
-            }
-            catch (AppServerMethodNotFoundException)
-            {
-                return Failure(CodexUsageStatus.UsageUnsupported, "The installed Codex version does not support usage lookup.");
-            }
-            catch (AppServerProtocolException)
-            {
-                return Failure(CodexUsageStatus.ProtocolError, "Codex App Server protocol failed.");
-            }
-            catch (AppServerExitedException)
-            {
-                return Failure(CodexUsageStatus.ProtocolError, "Codex App Server exited unexpectedly.");
-            }
-            catch (Win32Exception)
-            {
-                return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
-            }
-            catch (Exception)
-            {
-                return Failure(CodexUsageStatus.UnknownError, "An unexpected local error occurred.");
+                lastRecoverableFailure = MapCandidateFailure(exception);
             }
         }
 
-        return Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
+        return lastRecoverableFailure ??
+            Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started.");
     }
+
+    private IReadOnlyList<string> PrioritizeLastWorkingExecutable(IReadOnlyList<string> executablePaths)
+    {
+        var lastWorking = Volatile.Read(ref _lastWorkingExecutablePath);
+        if (string.IsNullOrWhiteSpace(lastWorking))
+        {
+            return executablePaths;
+        }
+
+        return executablePaths
+            .OrderByDescending(path => string.Equals(path, lastWorking, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    private static bool IsRecoverableCandidateFailure(Exception exception) =>
+        exception is Win32Exception or IOException or InvalidOperationException or TimeoutException or
+        AppServerResponseFormatException or AppServerMethodNotFoundException or
+        AppServerProtocolException or AppServerExitedException;
+
+    private static CodexUsageResult MapCandidateFailure(Exception exception) => exception switch
+    {
+        TimeoutException => Failure(CodexUsageStatus.TimedOut, "Codex App Server did not respond before the timeout."),
+        AppServerResponseFormatException => Failure(CodexUsageStatus.ResponseFormatChanged, "Codex App Server returned an unrecognized response shape."),
+        AppServerMethodNotFoundException => Failure(CodexUsageStatus.UsageUnsupported, "The installed Codex version does not support usage lookup."),
+        AppServerProtocolException or AppServerExitedException => Failure(CodexUsageStatus.ProtocolError, "Codex App Server protocol failed."),
+        Win32Exception or IOException or InvalidOperationException => Failure(CodexUsageStatus.CodexNotInstalled, "Codex executable could not be started."),
+        _ => Failure(CodexUsageStatus.UnknownError, "An unexpected local error occurred."),
+    };
 
     private static CodexUsageResult Failure(CodexUsageStatus status, string detail) =>
         new() { Status = status, Detail = detail };

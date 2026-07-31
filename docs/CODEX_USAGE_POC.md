@@ -127,7 +127,7 @@ CodexUsage.Poc
 - 일반 JSON-RPC 오류 스키마는 숫자 `code`, 문자열 `message`, 선택적 `data`만 제공하며 인증 만료용 안정적 discriminator가 없습니다.
 - `chatgptAuthTokens`는 공식 문서에서 experimental이고, 설치본 스키마에서도 unstable/internal-use 경로로 표시됩니다. 이 경로에 가짜 만료 토큰을 주입해 운영 동작을 추정하지 않았습니다.
 
-사용자의 실제 로그인 토큰을 폐기하거나 로그아웃하는 테스트도 수행하지 않았습니다. 따라서 `AuthenticationExpired`는 도메인 상태로 예약되어 있지만 현재 live provider는 오류 메시지 문자열을 추측해 이 상태로 매핑하지 않습니다. 공식 typed 신호가 추가되거나 격리된 테스트 계정으로 실제 만료 상태를 안전하게 재현할 수 있을 때 별도로 검증해야 합니다.
+사용자의 실제 로그인 토큰을 폐기하거나 로그아웃하는 테스트도 수행하지 않았습니다. 따라서 `AuthenticationExpired`는 도메인 상태로 예약되어 있지만 현재 live provider는 오류 메시지 문자열을 추측해 이 상태로 매핑하지 않습니다. 최신 공식 App Server 문서에 따라 모든 `account/read` 요청에는 `refreshToken: true`를 보내 Codex가 소유한 managed ChatGPT token refresh를 먼저 수행하고, 갱신 후 `account: null` 및 `requiresOpenaiAuth: true`인 경우에만 `NotAuthenticated`로 표시합니다. 이 과정에서 CodexUsage는 토큰을 읽거나 저장하지 않습니다.
 
 ## 실패하거나 제한된 방식
 

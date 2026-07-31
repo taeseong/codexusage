@@ -14,29 +14,36 @@ CodexUsage is a small desktop utility that keeps your Codex usage limits visible
 - Provides a Settings window for per-limit alerts, custom thresholds, quiet hours, reset reminders, test notifications, and Windows startup repair.
 - Reports recovered settings damage and can stage safe startup and notification defaults without clearing history or window placement. When settings cannot be read safely, the existing Windows startup registration is preserved until the user reviews and saves.
 - Can retry Codex CLI detection after installation without restarting CodexUsage.
-- Provides copyable, sanitized diagnostics with app, OS, CLI, lookup, and startup state.
+- Provides copyable, sanitized diagnostics with app, OS, CLI source, lookup, and startup state.
+- Lets users explicitly check the public GitHub Release page for an update; no automatic update check runs.
 - Provides a detail window with usage, reset, refresh, login, stale-data, and error states.
 - Provides status-specific recovery actions for a missing CLI, sign-in checks, unsupported versions, and transient lookup failures.
 - Restores a recent last-known-good usage snapshot after restart when live lookup is temporarily unavailable.
 - Refreshes immediately after Windows resumes or the network returns, with bounded retry backoff during transient failures.
-- Keeps an optional local history of weekly-limit peak observations and plan changes, with direct month selection, completed/partial observation filters, and explicit partial-observation labels; it never estimates usage while the app is closed.
+- Keeps an optional local history of weekly-limit peak observations and plan changes, with direct month selection, completed/partial observation filters, explicit partial-observation labels, and an on-demand local CSV export; it never estimates usage while the app is closed.
 - Restores the detail window size, position, and selected tab between launches.
 - Supports keyboard refresh and tab navigation in the detail window, with Automation names for essential controls.
 - Reads usage through the locally authenticated Codex App Server; it does not require a separate account or API key.
 
 ## Windows
 
-Windows 10/11 x64 is the current primary target.
+Windows 10/11 x64 is the current primary target. Windows ARM64 packages are also available for compatible devices.
 
 Install the latest `CodexUsage-Setup-*-win-x64.exe` from the project's releases. The installer is self-contained, so the target PC does not need a separate .NET installation.
 
-Codex CLI must be installed and signed in before live usage data can be shown:
+Codex CLI must be installed and signed in before live usage data can be shown. The official standalone PowerShell installer is recommended and does not require Node.js:
+
+```powershell
+irm https://chatgpt.com/codex/install.ps1 | iex
+```
+
+The npm package remains supported if Node.js is already installed:
 
 ```powershell
 npm install --global @openai/codex
 ```
 
-The official PowerShell standalone installer is also supported. CodexUsage
+CodexUsage
 detects its default Windows command location and a custom `CODEX_INSTALL_DIR`
 location without reading authentication files.
 
@@ -59,6 +66,14 @@ powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1
 
 The installer is written to `artifacts\installer`.
 The package command also creates a SHA-256 checksum next to the installer.
+
+Create an ARM64 installer and a portable ZIP with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1 -RuntimeIdentifier win-arm64 -Portable
+```
+
+The portable ZIP is written to `artifacts\portable`. It does not register an uninstaller or start-at-sign-in entry.
 
 ## Privacy
 

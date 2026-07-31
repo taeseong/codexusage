@@ -72,12 +72,15 @@ $stateHashesBefore = @{
     Position = (Get-FileHash -LiteralPath $positionPath -Algorithm SHA256).Hash
 }
 
-function Get-InstallerVersion([string]$path) {
-    $match = [regex]::Match((Split-Path -Leaf $path), '^CodexUsage-Setup-([0-9]+\.[0-9]+\.[0-9]+)-win-x64\.exe$')
+function Get-InstallerInfo([string]$path) {
+    $match = [regex]::Match((Split-Path -Leaf $path), '^CodexUsage-Setup-([0-9]+\.[0-9]+\.[0-9]+)-win-(x64|arm64)\.exe$')
     if (-not $match.Success) {
-        throw "Installer file name must be CodexUsage-Setup-<version>-win-x64.exe: $path"
+        throw "Installer file name must be CodexUsage-Setup-<version>-win-<x64|arm64>.exe: $path"
     }
-    return $match.Groups[1].Value
+    return [pscustomobject]@{
+        Version = $match.Groups[1].Value
+        Architecture = $match.Groups[2].Value
+    }
 }
 
 function Install-CodexUsage([string]$installerPath) {
@@ -107,8 +110,17 @@ function Get-InstalledVersion() {
     return (Get-ItemProperty -LiteralPath $uninstallKey).DisplayVersion
 }
 
-$baselineVersion = Get-InstallerVersion $BaselineInstallerPath
-$candidateVersion = Get-InstallerVersion $CandidateInstallerPath
+$baselineInstaller = Get-InstallerInfo $BaselineInstallerPath
+$candidateInstaller = Get-InstallerInfo $CandidateInstallerPath
+if ($baselineInstaller.Architecture -ne $candidateInstaller.Architecture) {
+    throw "Baseline and candidate installers must target the same architecture."
+}
+$expectedHostArchitecture = if ($candidateInstaller.Architecture -eq "arm64") { "Arm64" } else { "X64" }
+if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() -ne $expectedHostArchitecture) {
+    throw "The $($candidateInstaller.Architecture) installer must be tested on a matching $expectedHostArchitecture Windows device."
+}
+$baselineVersion = $baselineInstaller.Version
+$candidateVersion = $candidateInstaller.Version
 $candidateProcess = $null
 $probeFailure = $null
 $cleanupFailure = $null
@@ -177,6 +189,8 @@ try {
     $report = [ordered]@{
         BaselineVersion = $baselineVersion
         CandidateVersion = $candidateVersion
+        Architecture = $candidateInstaller.Architecture
+        HostArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
         InstalledVersion = Get-InstalledVersion
         InstalledFileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($executablePath).FileVersion
         PdbCount = @(Get-ChildItem -LiteralPath $installDirectory -Recurse -File -Filter "*.pdb").Count

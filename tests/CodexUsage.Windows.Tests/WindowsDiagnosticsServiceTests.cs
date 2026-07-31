@@ -46,6 +46,7 @@ public sealed class WindowsDiagnosticsServiceTests
         Assert.Contains("Build revision: 123456789abc", diagnostics, StringComparison.Ordinal);
         Assert.Contains("Usage status: Success", diagnostics, StringComparison.Ordinal);
         Assert.Contains("Codex CLI: codex-cli 0.145.0", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("Codex source: npm", diagnostics, StringComparison.Ordinal);
         Assert.Contains(@"Codex path: %APPDATA%\npm\codex.cmd", diagnostics, StringComparison.Ordinal);
         Assert.Contains("Startup: Registered correctly", diagnostics, StringComparison.Ordinal);
         Assert.Contains("Recent event: 2026-07-29 11:00:00 UTC | UsageLookupFailed | ProtocolError", diagnostics, StringComparison.Ordinal);

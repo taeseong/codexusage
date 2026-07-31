@@ -5,9 +5,9 @@
         Title="About CodexUsage"
         Icon="avares://CodexUsage/Assets/codex-usage.ico"
         Width="320"
-        Height="286"
+        Height="440"
         MinWidth="320"
-        MinHeight="286"
+        MinHeight="400"
         CanResize="False"
         ShowInTaskbar="False"
         Background="{DynamicResource UsageSurfaceAppBrush}"
@@ -21,8 +21,8 @@
       <Setter Property="FontSize" Value="12" />
     </Style>
   </Window.Styles>
-  <Grid Margin="28,24"
-        RowDefinitions="*">
+  <ScrollViewer Margin="28,24"
+                VerticalScrollBarVisibility="Auto">
     <StackPanel HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Spacing="10">
@@ -50,6 +50,11 @@
       <TextBlock Classes="usage-caption"
                  HorizontalAlignment="Center"
                  Text="{Binding Revision, StringFormat=Build {0}}" />
+      <TextBlock x:Name="CliStatusText"
+                 Classes="usage-caption"
+                 HorizontalAlignment="Center"
+                 TextAlignment="Center"
+                 Text="CLI: Checking..." />
       <Button Classes="github-link"
               HorizontalAlignment="Center"
               Click="OnOpenGitHub"
@@ -60,11 +65,24 @@
               HorizontalAlignment="Center"
               Click="OnCopyDiagnostics"
               Content="Copy diagnostics" />
+      <Button x:Name="CheckForUpdatesButton"
+              AutomationProperties.Name="Check for CodexUsage updates"
+              Classes="usage-action"
+              HorizontalAlignment="Center"
+              Click="OnCheckForUpdates"
+              Content="Check for updates" />
+      <Button x:Name="OpenReleaseButton"
+              AutomationProperties.Name="Open latest CodexUsage release"
+              Classes="github-link"
+              HorizontalAlignment="Center"
+              Click="OnOpenLatestRelease"
+              IsVisible="False"
+              Content="Open release" />
       <TextBlock x:Name="DiagnosticsStatusText"
                  Classes="usage-caption"
                  HorizontalAlignment="Center"
                  TextAlignment="Center"
                  TextWrapping="Wrap" />
     </StackPanel>
-  </Grid>
+  </ScrollViewer>
 </Window>

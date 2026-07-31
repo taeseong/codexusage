@@ -15,6 +15,7 @@ using CodexUsage.Windows.Recovery;
 using CodexUsage.Windows.Settings;
 using CodexUsage.Windows.Startup;
 using CodexUsage.Windows.SystemTray;
+using CodexUsage.Windows.Updates;
 using CodexUsage.Windows.ViewModels;
 using CodexUsage.Windows.Views;
 using CodexUsage.Windows.Windowing;
@@ -40,6 +41,7 @@ public partial class App : Application
     private readonly JsonUsageSnapshotCache _usageSnapshotCache = new();
     private readonly WindowsDiagnosticsService _diagnosticsService = new();
     private readonly WindowsDiagnosticsLog _diagnosticsLog = new();
+    private readonly GitHubReleaseUpdateChecker _updateChecker = new();
     private WindowsRefreshRecoveryService? _refreshRecoveryService;
     private UsageHistoryViewModel? _usageHistoryViewModel;
     private WindowsAppSettings _settings = new();
@@ -575,7 +577,8 @@ public partial class App : Application
             _aboutWindow = new AboutWindow(
                 provenance.Version,
                 provenance.Revision,
-                BuildDiagnosticsAsync);
+                BuildDiagnosticsAsync,
+                cancellationToken => _updateChecker.CheckAsync(provenance.Version, cancellationToken));
             _aboutWindow.Closed += (_, _) => _aboutWindow = null;
         }
 

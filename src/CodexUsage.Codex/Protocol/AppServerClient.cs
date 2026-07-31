@@ -28,7 +28,10 @@ internal sealed class AppServerClient(
     public Task<AccountReadResponse> ReadAccountAsync(CancellationToken cancellationToken) =>
         SendRequestAsync<AccountReadResponse>(
             "account/read",
-            new { refreshToken = false },
+            // Ask the Codex-owned managed ChatGPT session to refresh before
+            // deciding whether a user must sign in. Credentials remain inside
+            // App Server; this client receives only the documented auth state.
+            new { refreshToken = true },
             cancellationToken);
 
     public Task<RateLimitsReadResponse> ReadRateLimitsAsync(CancellationToken cancellationToken) =>

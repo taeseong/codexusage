@@ -13,6 +13,14 @@
   #define AppVersion "0.1.4"
 #endif
 
+#ifndef InstallerArchitecture
+  #define InstallerArchitecture "x64compatible"
+#endif
+
+#ifndef InstallerRuntimeIdentifier
+  #define InstallerRuntimeIdentifier "win-x64"
+#endif
+
 [Setup]
 AppId={{C12312E9-92C6-4C1E-A337-54134A9FBA72}
 AppName=CodexUsage
@@ -22,10 +30,10 @@ DefaultDirName={localappdata}\Programs\CodexUsage
 DefaultGroupName=CodexUsage
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed={#InstallerArchitecture}
+ArchitecturesInstallIn64BitMode={#InstallerArchitecture}
 OutputDir={#OutputDir}
-OutputBaseFilename=CodexUsage-Setup-{#AppVersion}-win-x64
+OutputBaseFilename=CodexUsage-Setup-{#AppVersion}-{#InstallerRuntimeIdentifier}
 SetupIconFile=..\src\CodexUsage.Windows\Assets\codex-usage.ico
 UninstallDisplayIcon={app}\CodexUsage.exe
 Compression=lzma2

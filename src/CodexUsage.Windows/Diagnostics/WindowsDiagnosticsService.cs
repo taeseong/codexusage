@@ -76,6 +76,7 @@ internal sealed class WindowsDiagnosticsService
             .Append("Process architecture: ").AppendLine(_processArchitectureProvider().ToString())
             .Append("Usage status: ").AppendLine(usageStatus?.ToString() ?? "Not checked")
             .Append("Codex CLI: ").AppendLine(cli.IsFound ? cli.Version ?? "Version unavailable" : "Not found")
+            .Append("Codex source: ").AppendLine(cli.InstallationSource)
             .Append("Codex path: ").AppendLine(SanitizePath(cli.ExecutablePath))
             .Append("Startup: ").AppendLine(FormatStartupStatus(startupStatus))
             .Append("Generated at UTC: ")

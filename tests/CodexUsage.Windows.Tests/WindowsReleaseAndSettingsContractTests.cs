@@ -21,6 +21,9 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("InformationalVersion", script, StringComparison.Ordinal);
         Assert.Contains("IncludeSourceRevisionInInformationalVersion", script, StringComparison.Ordinal);
         Assert.Contains("$Version+local", script, StringComparison.Ordinal);
+        Assert.Contains("ValidateSet(\"win-x64\", \"win-arm64\")", script, StringComparison.Ordinal);
+        Assert.Contains("[switch]$Portable", script, StringComparison.Ordinal);
+        Assert.Contains("CodexUsage-$Version-$RuntimeIdentifier-portable.zip", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,7 +52,20 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("PhysicalWidth", script, StringComparison.Ordinal);
         Assert.Contains("PhysicalHeight", script, StringComparison.Ordinal);
         Assert.Contains("DpiAtPoint", script, StringComparison.Ordinal);
+        Assert.Contains("SetThreadDpiAwarenessContext", script, StringComparison.Ordinal);
+        Assert.Contains("new IntPtr(-4)", script, StringComparison.Ordinal);
+        Assert.Contains("did not reach its native state before the capture probe exited", script, StringComparison.Ordinal);
+        Assert.Contains("[Math]::Ceiling(34 * $dpi / 96)", script, StringComparison.Ordinal);
         Assert.Contains("$targetDpi / 96.0", script, StringComparison.Ordinal);
+        Assert.Contains("[int[]]$RequiredScalePercent", script, StringComparison.Ordinal);
+        Assert.Contains("Required display scale percent is unavailable", script, StringComparison.Ordinal);
+        Assert.Contains("RequiredScalePercent = $RequiredScalePercent", script, StringComparison.Ordinal);
+        Assert.Contains("editing-scale-$scale", script, StringComparison.Ordinal);
+        Assert.Contains("locked-scale-$scale", script, StringComparison.Ordinal);
+        Assert.Contains("$matchingScreens[0].Screen", script, StringComparison.Ordinal);
+        Assert.Contains("MoveWindowWithoutActivation", script, StringComparison.Ordinal);
+        Assert.Contains("mixed-dpi-$firstScale-to-$lastScale", script, StringComparison.Ordinal);
+        Assert.Contains("TransitionTargetScreen", script, StringComparison.Ordinal);
         Assert.Contains("desktop-context.png", script, StringComparison.Ordinal);
         Assert.Contains("SourceCopyWithLayeredWindows", script, StringComparison.Ordinal);
         Assert.Contains("CopyDesktop", script, StringComparison.Ordinal);
@@ -67,6 +83,9 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("clean test account", script, StringComparison.Ordinal);
         Assert.Contains("/VERYSILENT", script, StringComparison.Ordinal);
         Assert.Contains("DisplayVersion", script, StringComparison.Ordinal);
+        Assert.Contains("win-(x64|arm64)", script, StringComparison.Ordinal);
+        Assert.Contains("matching $expectedHostArchitecture Windows device", script, StringComparison.Ordinal);
+        Assert.Contains("Baseline and candidate installers must target the same architecture", script, StringComparison.Ordinal);
         Assert.Contains("StateHashesPreserved", script, StringComparison.Ordinal);
         Assert.Contains("candidate-widget.png", script, StringComparison.Ordinal);
         Assert.Contains("PDB files", script, StringComparison.Ordinal);
@@ -99,11 +118,15 @@ public sealed class WindowsReleaseAndSettingsContractTests
         Assert.Contains("Release tag $tag must resolve to the checked-out commit.", workflow, StringComparison.Ordinal);
         Assert.Contains("Release packaging requires a clean Git working tree.", workflow, StringComparison.Ordinal);
         Assert.Contains("-ReleaseTag $env:RELEASE_TAG", workflow, StringComparison.Ordinal);
+        Assert.Contains("-RuntimeIdentifier win-arm64", workflow, StringComparison.Ordinal);
+        Assert.Contains("-Portable", workflow, StringComparison.Ordinal);
+        Assert.Contains("win-arm64.exe", workflow, StringComparison.Ordinal);
+        Assert.Contains("win-x64-portable.zip", workflow, StringComparison.Ordinal);
         var directRefExpressions = workflow
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Where(line => line.Contains("${{ github.ref_name }}", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(3, directRefExpressions.Length);
+        Assert.Equal(4, directRefExpressions.Length);
         Assert.All(
             directRefExpressions,
             line => Assert.Contains("RELEASE_TAG:", line, StringComparison.Ordinal));

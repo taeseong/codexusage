@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CodexUsage.Windows.Windowing;
 using AvaloniaScreen = Avalonia.Platform.Screen;
 
@@ -16,6 +17,7 @@ public partial class UsageWidgetWindow : Window
     private readonly WindowsWidgetWindowController _windowController = new();
     private WindowsTopmostGuard? _topmostGuard;
     private WidgetPositionRestorePoint? _restoredPosition;
+    private int _nativeStateApplyQueued;
     private bool _allowClose;
     private double _logicalWidth = 160d;
     private double _logicalHeight = 34d;
@@ -30,6 +32,7 @@ public partial class UsageWidgetWindow : Window
         _interactionState = interactionState;
         InitializeComponent();
         Opened += OnOpened;
+        PositionChanged += OnPositionChanged;
         _interactionState.PropertyChanged += OnInteractionStateChanged;
     }
 
@@ -48,10 +51,7 @@ public partial class UsageWidgetWindow : Window
         var scale = Math.Clamp(scalePercent, 75, 150) / 100d;
         _logicalWidth = 160d * scale;
         _logicalHeight = 34d * scale;
-        Width = _logicalWidth;
-        Height = _logicalHeight;
-        MinWidth = _logicalWidth;
-        MinHeight = _logicalHeight;
+        ApplyWindowDimensionsForCurrentMonitor();
         ApplyNativeState();
     }
 
@@ -107,6 +107,7 @@ public partial class UsageWidgetWindow : Window
         _topmostGuard = null;
         _interactionState.PropertyChanged -= OnInteractionStateChanged;
         Opened -= OnOpened;
+        PositionChanged -= OnPositionChanged;
         base.OnClosed(e);
     }
 
@@ -121,7 +122,9 @@ public partial class UsageWidgetWindow : Window
                 targetScreen.WorkingArea);
         }
 
+        ApplyWindowDimensionsForCurrentMonitor();
         ApplyNativeState();
+        QueueApplyNativeState();
         try
         {
             _topmostGuard ??= new WindowsTopmostGuard(ApplyNativeState);
@@ -138,6 +141,40 @@ public partial class UsageWidgetWindow : Window
     private void OnInteractionStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         ApplyNativeState();
+    }
+
+    private void OnPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        ApplyWindowDimensionsForCurrentMonitor();
+        QueueApplyNativeState();
+    }
+
+    private void ApplyWindowDimensionsForCurrentMonitor()
+    {
+        var screen = Screens.ScreenFromWindow(this) ??
+                     Screens.ScreenFromPoint(Position) ??
+                     Screens.Primary;
+        var scaling = Math.Max(1d, screen?.Scaling ?? RenderScaling);
+        Width = _logicalWidth * scaling;
+        Height = _logicalHeight * scaling;
+        MinWidth = Width;
+        MinHeight = Height;
+    }
+
+    private void QueueApplyNativeState()
+    {
+        if (Interlocked.Exchange(ref _nativeStateApplyQueued, 1) != 0)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                Interlocked.Exchange(ref _nativeStateApplyQueued, 0);
+                ApplyNativeState();
+            },
+            DispatcherPriority.Background);
     }
 
     private AvaloniaScreen? FindRestoreScreen(WidgetPositionRestorePoint restorePoint)

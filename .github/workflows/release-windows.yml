@@ -56,13 +56,21 @@ jobs:
           dotnet build CodexUsage.sln --configuration Release --no-restore
           dotnet test CodexUsage.sln --configuration Release --no-build
 
-      - name: Package Windows x64
+      - name: Package Windows x64 and portable ZIP
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $version = $env:RELEASE_TAG.Substring(1)
-          ./scripts/package-windows.ps1 -Version $version -ReleaseTag $env:RELEASE_TAG
+          ./scripts/package-windows.ps1 -Version $version -ReleaseTag $env:RELEASE_TAG -RuntimeIdentifier win-x64 -Portable
+
+      - name: Package Windows ARM64
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:RELEASE_TAG.Substring(1)
+          ./scripts/package-windows.ps1 -Version $version -ReleaseTag $env:RELEASE_TAG -RuntimeIdentifier win-arm64
 
       - name: Publish GitHub Release
         shell: pwsh
@@ -74,8 +82,12 @@ jobs:
           $version = $tag.Substring(1)
           $installer = "artifacts/installer/CodexUsage-Setup-$version-win-x64.exe"
           $checksum = "$installer.sha256"
+          $armInstaller = "artifacts/installer/CodexUsage-Setup-$version-win-arm64.exe"
+          $armChecksum = "$armInstaller.sha256"
+          $portable = "artifacts/portable/CodexUsage-$version-win-x64-portable.zip"
+          $portableChecksum = "$portable.sha256"
           $notes = "docs/RELEASE_NOTES_$version.md"
-          gh release create $tag $installer $checksum `
+          gh release create $tag $installer $checksum $armInstaller $armChecksum $portable $portableChecksum `
             --title "CodexUsage $version" `
             --notes-file $notes `
             --verify-tag `

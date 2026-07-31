@@ -3,7 +3,9 @@ param(
     [string]$ExecutablePath,
     [string]$OutputDirectory,
     [ValidateRange(1000, 30000)]
-    [int]$CaptureDelayMilliseconds = 5000
+    [int]$CaptureDelayMilliseconds = 5000,
+    [ValidateRange(100, 500)]
+    [int[]]$RequiredScalePercent = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -110,6 +112,17 @@ namespace CodexUsageQa
         [DllImport("user32.dll")]
         private static extern bool IsWindowVisible(IntPtr hwnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(
+            IntPtr hwnd,
+            IntPtr insertAfter,
+            int x,
+            int y,
+            int width,
+            int height,
+            uint flags);
+
         [DllImport("dwmapi.dll")]
         private static extern int DwmGetWindowAttribute(
             IntPtr hwnd,
@@ -126,6 +139,10 @@ namespace CodexUsageQa
             int dpiType,
             out uint dpiX,
             out uint dpiY);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetThreadDpiAwarenessContext(
+            IntPtr dpiAwarenessContext);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetDC(IntPtr hwnd);
@@ -154,11 +171,35 @@ namespace CodexUsageQa
         {
             var point = new POINT { X = x, Y = y };
             var monitor = MonitorFromPoint(point, 2);
-            uint dpiX;
-            uint dpiY;
-            return GetDpiForMonitor(monitor, 0, out dpiX, out dpiY) == 0
-                ? dpiX
-                : 0;
+            var previousContext = SetThreadDpiAwarenessContext(new IntPtr(-4));
+
+            try
+            {
+                uint dpiX;
+                uint dpiY;
+                return GetDpiForMonitor(monitor, 0, out dpiX, out dpiY) == 0
+                    ? dpiX
+                    : 0;
+            }
+            finally
+            {
+                SetThreadDpiAwarenessContext(previousContext);
+            }
+        }
+
+        public static bool MoveWindowWithoutActivation(long handle, int x, int y)
+        {
+            const uint NoSize = 0x0001;
+            const uint NoZOrder = 0x0004;
+            const uint NoActivate = 0x0010;
+            return SetWindowPos(
+                new IntPtr(handle),
+                IntPtr.Zero,
+                x,
+                y,
+                0,
+                0,
+                NoSize | NoZOrder | NoActivate);
         }
 
         public static bool CopyDesktop(
@@ -257,13 +298,20 @@ function Wait-ForWidget {
         [Parameter(Mandatory)]
         [Diagnostics.Process]$Process,
         [Parameter(Mandatory)]
-        [bool]$Locked
+        [bool]$Locked,
+        [System.Windows.Forms.Screen]$ExpectedScreen = $null
     )
 
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     $lastSnapshot = $null
     do {
         if ($Process.HasExited) {
+            if ($null -ne $lastSnapshot) {
+                throw "The CodexUsage widget HWND did not reach its native state before the capture probe exited: " +
+                    "style=0x$('{0:X}' -f $lastSnapshot.ExtendedStyle), " +
+                    "size=$($lastSnapshot.Width)x$($lastSnapshot.Height), dpi=$($lastSnapshot.Dpi)"
+            }
+
             throw "CodexUsage exited before the widget HWND was available."
         }
 
@@ -271,8 +319,8 @@ function Wait-ForWidget {
         if ($null -ne $snapshot) {
             $lastSnapshot = $snapshot
             $dpi = if ($snapshot.Dpi -eq 0) { 96 } else { $snapshot.Dpi }
-            $expectedWidth = [Math]::Round(160 * $dpi / 96)
-            $expectedHeight = [Math]::Round(34 * $dpi / 96)
+            $expectedWidth = [Math]::Ceiling(160 * $dpi / 96)
+            $expectedHeight = [Math]::Ceiling(34 * $dpi / 96)
             $style = $snapshot.ExtendedStyle
             $hasRequiredStyles =
                 ($style -band $topmostStyle) -ne 0 -and
@@ -281,10 +329,17 @@ function Wait-ForWidget {
                 ($style -band $noActivateStyle) -ne 0
             $clickThroughMatches =
                 (($style -band $transparentStyle) -ne 0) -eq $Locked
+            $matchesExpectedScreen =
+                $null -eq $ExpectedScreen -or
+                ($snapshot.Left -ge $ExpectedScreen.WorkingArea.Left -and
+                 $snapshot.Top -ge $ExpectedScreen.WorkingArea.Top -and
+                 ($snapshot.Left + $snapshot.Width) -le $ExpectedScreen.WorkingArea.Right -and
+                 ($snapshot.Top + $snapshot.Height) -le $ExpectedScreen.WorkingArea.Bottom)
             if ($hasRequiredStyles -and
                 $clickThroughMatches -and
                 $snapshot.Width -eq $expectedWidth -and
-                $snapshot.Height -eq $expectedHeight) {
+                $snapshot.Height -eq $expectedHeight -and
+                $matchesExpectedScreen) {
                 return $snapshot
             }
         }
@@ -334,7 +389,8 @@ function Invoke-WidgetCase {
         [Parameter(Mandatory)]
         [bool]$Locked,
         [Parameter(Mandatory)]
-        [System.Windows.Forms.Screen]$TargetScreen
+        [System.Windows.Forms.Screen]$TargetScreen,
+        [System.Windows.Forms.Screen]$TransitionTargetScreen = $null
     )
 
     $caseDirectory = Join-Path $OutputDirectory $Name
@@ -396,13 +452,41 @@ function Invoke-WidgetCase {
     try {
         $process = [Diagnostics.Process]::Start($processInfo)
         $snapshot = Wait-ForWidget -Process $process -Locked $Locked
+        $transition = $null
+        $effectiveTargetScreen = $TargetScreen
+        if ($null -ne $TransitionTargetScreen) {
+            $transitionX = $TransitionTargetScreen.WorkingArea.Left + 40
+            $transitionY = $TransitionTargetScreen.WorkingArea.Top + 40
+            if (-not [CodexUsageQa.NativeWindowProbe]::MoveWindowWithoutActivation(
+                    $snapshot.Handle,
+                    $transitionX,
+                    $transitionY)) {
+                throw "The widget could not be moved to the mixed-DPI target monitor without activation."
+            }
+
+            $initialSnapshot = $snapshot
+            $snapshot = Wait-ForWidget `
+                -Process $process `
+                -Locked $Locked `
+                -ExpectedScreen $TransitionTargetScreen
+            $effectiveTargetScreen = $TransitionTargetScreen
+            $transition = [ordered]@{
+                FromPosition = "$($initialSnapshot.Left),$($initialSnapshot.Top)"
+                FromPhysicalSize = "$($initialSnapshot.Width)x$($initialSnapshot.Height)"
+                FromDpi = $initialSnapshot.Dpi
+                ToPosition = "$($snapshot.Left),$($snapshot.Top)"
+                ToPhysicalSize = "$($snapshot.Width)x$($snapshot.Height)"
+                ToDpi = $snapshot.Dpi
+                TargetScreen = $TransitionTargetScreen.DeviceName
+            }
+        }
         Start-Sleep -Milliseconds 100
         $foregroundAfter = [CodexUsageQa.NativeWindowProbe]::ForegroundWindow()
         $startupDuring = Get-CodexUsageStartupRegistration
 
         $expectedDpi = if ($snapshot.Dpi -eq 0) { 96 } else { $snapshot.Dpi }
-        $expectedWidth = [Math]::Round(160 * $expectedDpi / 96)
-        $expectedHeight = [Math]::Round(34 * $expectedDpi / 96)
+        $expectedWidth = [Math]::Ceiling(160 * $expectedDpi / 96)
+        $expectedHeight = [Math]::Ceiling(34 * $expectedDpi / 96)
         $extendedStyle = $snapshot.ExtendedStyle
 
         $checks = [ordered]@{
@@ -417,10 +501,10 @@ function Invoke-WidgetCase {
             PhysicalWidth = $snapshot.Width -eq $expectedWidth
             PhysicalHeight = $snapshot.Height -eq $expectedHeight
             TargetMonitor =
-                $snapshot.Left -ge $TargetScreen.WorkingArea.Left -and
-                $snapshot.Top -ge $TargetScreen.WorkingArea.Top -and
-                ($snapshot.Left + $snapshot.Width) -le $TargetScreen.WorkingArea.Right -and
-                ($snapshot.Top + $snapshot.Height) -le $TargetScreen.WorkingArea.Bottom
+                $snapshot.Left -ge $effectiveTargetScreen.WorkingArea.Left -and
+                $snapshot.Top -ge $effectiveTargetScreen.WorkingArea.Top -and
+                ($snapshot.Left + $snapshot.Width) -le $effectiveTargetScreen.WorkingArea.Right -and
+                ($snapshot.Top + $snapshot.Height) -le $effectiveTargetScreen.WorkingArea.Bottom
             ForegroundNotWidget = $foregroundAfter -ne $snapshot.Handle
             ForegroundPreserved =
                 $foregroundBefore -eq 0 -or
@@ -443,16 +527,16 @@ function Invoke-WidgetCase {
 
         $contextPadding = 80
         $contextLeft = [Math]::Max(
-            $TargetScreen.Bounds.Left,
+            $effectiveTargetScreen.Bounds.Left,
             $snapshot.Left - $contextPadding)
         $contextTop = [Math]::Max(
-            $TargetScreen.Bounds.Top,
+            $effectiveTargetScreen.Bounds.Top,
             $snapshot.Top - $contextPadding)
         $contextRight = [Math]::Min(
-            $TargetScreen.Bounds.Right,
+            $effectiveTargetScreen.Bounds.Right,
             $snapshot.Left + $snapshot.Width + $contextPadding)
         $contextBottom = [Math]::Min(
-            $TargetScreen.Bounds.Bottom,
+            $effectiveTargetScreen.Bounds.Bottom,
             $snapshot.Top + $snapshot.Height + $contextPadding)
         $contextWidth = $contextRight - $contextLeft
         $contextHeight = $contextBottom - $contextTop
@@ -507,10 +591,10 @@ function Invoke-WidgetCase {
 
         $savedPosition = Get-Content -LiteralPath $positionPath -Raw | ConvertFrom-Json
         $savedOnTarget =
-            $savedPosition.X -ge $TargetScreen.WorkingArea.Left -and
-            $savedPosition.Y -ge $TargetScreen.WorkingArea.Top -and
-            $savedPosition.X -lt $TargetScreen.WorkingArea.Right -and
-            $savedPosition.Y -lt $TargetScreen.WorkingArea.Bottom
+            $savedPosition.X -ge $effectiveTargetScreen.WorkingArea.Left -and
+            $savedPosition.Y -ge $effectiveTargetScreen.WorkingArea.Top -and
+            $savedPosition.X -lt $effectiveTargetScreen.WorkingArea.Right -and
+            $savedPosition.Y -lt $effectiveTargetScreen.WorkingArea.Bottom
         if (-not $savedOnTarget) {
             throw "The saved widget position did not remain on the target monitor."
         }
@@ -528,6 +612,7 @@ function Invoke-WidgetCase {
             ForegroundAfter = ("0x{0:X}" -f $foregroundAfter)
             StartupRegistrationBefore = $startupBefore
             StartupRegistrationAfter = $startupAfter
+            Transition = $transition
             Checks = $checks
             CapturePath = $capturePath
             DesktopContextPath = $desktopContextPath
@@ -546,16 +631,83 @@ function Invoke-WidgetCase {
 }
 
 $screens = @([System.Windows.Forms.Screen]::AllScreens)
-$primaryScreen = @($screens | Where-Object Primary)[0]
-$secondaryScreen = if ($screens.Count -gt 1) { $screens[1] } else { $primaryScreen }
+$screenScaleEntries = @($screens | ForEach-Object {
+    $centerX = $_.Bounds.Left + [Math]::Max(0, [int]($_.Bounds.Width / 2))
+    $centerY = $_.Bounds.Top + [Math]::Max(0, [int]($_.Bounds.Height / 2))
+    $dpi = [CodexUsageQa.NativeWindowProbe]::DpiAtPoint($centerX, $centerY)
+    [pscustomobject]@{
+        Screen = $_
+        Dpi = $dpi
+        ScalePercent = if ($dpi -eq 0) { $null } else { [Math]::Round($dpi * 100 / 96) }
+    }
+})
+$actualScalePercent = @($screenScaleEntries | ForEach-Object ScalePercent | Where-Object { $null -ne $_ })
+$requestedScalePercent = @($RequiredScalePercent | Sort-Object -Unique)
+$missingScalePercent = @($requestedScalePercent | Where-Object { $_ -notin $actualScalePercent })
+if ($missingScalePercent.Count -gt 0) {
+    $actualDescription = if ($actualScalePercent.Count -eq 0) { "unknown" } else { $actualScalePercent -join ", " }
+    throw "Required display scale percent is unavailable: $($missingScalePercent -join ', '). Actual monitor scale percent: $actualDescription. Change Windows display scaling and rerun this isolated probe."
+}
+$primaryScreen = @($screenScaleEntries | Where-Object { $_.Screen.Primary })[0].Screen
+$secondaryScreen = if ($screens.Count -gt 1) { $screenScaleEntries[1].Screen } else { $primaryScreen }
+$casePlans = if ($requestedScalePercent.Count -eq 0) {
+    @(
+        [pscustomobject]@{ Name = "editing-primary"; Locked = $false; TargetScreen = $primaryScreen }
+        [pscustomobject]@{ Name = "locked-secondary"; Locked = $true; TargetScreen = $secondaryScreen }
+    )
+}
+else {
+    @($requestedScalePercent | ForEach-Object {
+        $scale = $_
+        $matchingScreens = @($screenScaleEntries | Where-Object { $_.ScalePercent -eq $scale })
+        if ($matchingScreens.Count -eq 0) {
+            throw "No target screen was found for required scale percent $scale."
+        }
+
+        $targetScreen = $matchingScreens[0].Screen
+        [pscustomobject]@{ Name = "editing-scale-$scale"; Locked = $false; TargetScreen = $targetScreen }
+        [pscustomobject]@{ Name = "locked-scale-$scale"; Locked = $true; TargetScreen = $targetScreen }
+    })
+}
+if ($requestedScalePercent.Count -ge 2) {
+    $firstScale = $requestedScalePercent[0]
+    $lastScale = $requestedScalePercent[$requestedScalePercent.Count - 1]
+    $firstScreen = @($screenScaleEntries | Where-Object { $_.ScalePercent -eq $firstScale })[0].Screen
+    $lastScreen = @($screenScaleEntries | Where-Object { $_.ScalePercent -eq $lastScale })[0].Screen
+    $casePlans += [pscustomobject]@{
+        Name = "mixed-dpi-$firstScale-to-$lastScale"
+        Locked = $false
+        TargetScreen = $firstScreen
+        TransitionTargetScreen = $lastScreen
+    }
+    $casePlans += [pscustomobject]@{
+        Name = "mixed-dpi-$lastScale-to-$firstScale"
+        Locked = $false
+        TargetScreen = $lastScreen
+        TransitionTargetScreen = $firstScreen
+    }
+}
 $windowsVersion = Get-ItemProperty `
     "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" `
     -ErrorAction SilentlyContinue
+$screenReports = @($screenScaleEntries | ForEach-Object {
+    [ordered]@{
+        DeviceName = $_.Screen.DeviceName
+        Bounds = $_.Screen.Bounds.ToString()
+        WorkingArea = $_.Screen.WorkingArea.ToString()
+        Primary = $_.Screen.Primary
+        Dpi = $_.Dpi
+        ScalePercent = $_.ScalePercent
+    }
+})
 
-$results = @(
-    Invoke-WidgetCase -Name "editing-primary" -Locked $false -TargetScreen $primaryScreen
-    Invoke-WidgetCase -Name "locked-secondary" -Locked $true -TargetScreen $secondaryScreen
-)
+$results = @($casePlans | ForEach-Object {
+    Invoke-WidgetCase `
+        -Name $_.Name `
+        -Locked $_.Locked `
+        -TargetScreen $_.TargetScreen `
+        -TransitionTargetScreen $_.TransitionTargetScreen
+})
 
 $report = [ordered]@{
     GeneratedAt = [DateTimeOffset]::Now.ToString("O")
@@ -567,20 +719,9 @@ $report = [ordered]@{
     }
     ExecutablePath = $ExecutablePath
     FileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($ExecutablePath).FileVersion
+    RequiredScalePercent = $RequiredScalePercent
     ScreenCount = $screens.Count
-    Screens = @($screens | ForEach-Object {
-        $centerX = $_.Bounds.Left + [Math]::Max(0, [int]($_.Bounds.Width / 2))
-        $centerY = $_.Bounds.Top + [Math]::Max(0, [int]($_.Bounds.Height / 2))
-        $dpi = [CodexUsageQa.NativeWindowProbe]::DpiAtPoint($centerX, $centerY)
-        [ordered]@{
-            DeviceName = $_.DeviceName
-            Bounds = $_.Bounds.ToString()
-            WorkingArea = $_.WorkingArea.ToString()
-            Primary = $_.Primary
-            Dpi = $dpi
-            ScalePercent = if ($dpi -eq 0) { $null } else { [Math]::Round($dpi * 100 / 96) }
-        }
-    })
+    Screens = $screenReports
     Cases = $results
 }
 

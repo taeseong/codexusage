@@ -40,7 +40,9 @@ Windows 위젯과 트레이도 같은 typed 상태와 고정 문구만 사용합
 
 손상된 `settings.json`은 `.corrupt-*` 파일로 로컬에 보존하고 안전한 기본값을 사용합니다. 파일을 읽지 못했거나 손상 파일 보존에 실패한 경우에는 명시적인 Settings Save 전까지 자동 쓰기를 중지해 기존 파일 덮어쓰기를 방지합니다. 이 복구 게이트가 활성화된 동안에는 기존 Windows 시작 프로그램 등록을 읽어 화면에만 반영하고 추가·수정·삭제하지 않습니다. 설정 화면의 기본값 복원은 자동 시작과 알림 설정만 저장 전 상태로 변경하며 사용량 이력, 캐시, 창 위치 또는 Codex 인증정보를 삭제하거나 읽지 않습니다.
 
-Codex CLI 미설치 안내는 고정된 공식 npm 명령을 화면에 표시하고 사용자가 요청할 때 클립보드에 복사할 뿐입니다. 앱이 설치 명령을 자동 실행하거나 관리자 권한을 요청하지 않으며, 설치 이후에도 기존 Codex 로그인 컨텍스트만 사용합니다.
+Codex CLI 미설치 안내는 고정된 공식 PowerShell standalone 명령과 npm 대안 명령을 화면에 표시하고 사용자가 요청할 때 클립보드에 복사할 뿐입니다. 앱이 설치 명령을 자동 실행하거나 관리자 권한을 요청하지 않으며, 설치 이후에도 기존 Codex 로그인 컨텍스트만 사용합니다. History CSV export is also explicit: it writes only the locally observed fields selected by the user to a file chosen in the Save dialog.
+
+The About-window update check is explicit rather than automatic. It makes a public, unauthenticated request to GitHub only when the user presses `Check for updates`; it never attaches Codex usage, account, token, or diagnostics data.
 
 ## 프로세스 보안
 

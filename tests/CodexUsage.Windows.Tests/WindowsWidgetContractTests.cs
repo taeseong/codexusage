@@ -61,6 +61,10 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("new Size(_logicalWidth, _logicalHeight)", codeBehind, StringComparison.Ordinal);
         Assert.Contains("ApplyDisplayScale", codeBehind, StringComparison.Ordinal);
         Assert.Contains("Math.Clamp(scalePercent, 75, 150)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("PositionChanged += OnPositionChanged", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ApplyWindowDimensionsForCurrentMonitor", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("screen?.Scaling ?? RenderScaling", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Background", codeBehind, StringComparison.Ordinal);
         Assert.Contains(
             window.Descendants().Attributes("Text"),
             attribute => attribute.Value.Contains("SummaryDividerText", StringComparison.Ordinal));
@@ -155,6 +159,7 @@ public sealed class WindowsWidgetContractTests
             document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
         var source = File.ReadAllText(TestAsset("WindowsApp.cs"));
 
+        Assert.Contains("irm https://chatgpt.com/codex/install.ps1 | iex", text, StringComparison.Ordinal);
         Assert.Contains("npm install --global @openai/codex", text, StringComparison.Ordinal);
         Assert.Contains("앱을 재시작하지 않고", text, StringComparison.Ordinal);
         Assert.Contains("다시 확인", text, StringComparison.Ordinal);
@@ -228,6 +233,8 @@ public sealed class WindowsWidgetContractTests
 
         Assert.Equal("CenterScreen", document.Root?.Attribute("WindowStartupLocation")?.Value);
         Assert.Equal("False", document.Root?.Attribute("ShowInTaskbar")?.Value);
+        Assert.Equal("440", document.Root?.Attribute("Height")?.Value);
+        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "ScrollViewer");
         Assert.Contains(document.Descendants().Attributes("Text"), attribute => attribute.Value == ">_");
         Assert.Contains(
             document.Descendants().Attributes("Text"),
@@ -235,6 +242,8 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains(
             document.Descendants().Attributes("Text"),
             attribute => attribute.Value == "{Binding Revision, StringFormat=Build {0}}");
+        Assert.Contains(document.Descendants().Attributes("Text"), attribute =>
+            attribute.Value == "CLI: Checking...");
         Assert.Contains(document.Descendants().Attributes("Content"), attribute =>
             attribute.Value == "github.com/taeseong/codexusage");
         Assert.DoesNotContain(document.Descendants().Attributes("Content"), attribute =>
@@ -242,7 +251,12 @@ public sealed class WindowsWidgetContractTests
         Assert.Contains("https://github.com/taeseong/codexusage", source, StringComparison.Ordinal);
         Assert.Contains(document.Descendants().Attributes("Content"), attribute =>
             attribute.Value == "Copy diagnostics");
+        Assert.Contains(document.Descendants().Attributes("Content"), attribute =>
+            attribute.Value == "Check for updates");
         Assert.Contains("OnCopyDiagnostics", source, StringComparison.Ordinal);
+        Assert.Contains("OnCheckForUpdates", source, StringComparison.Ordinal);
+        Assert.Contains("OnOpenLatestRelease", source, StringComparison.Ordinal);
+        Assert.Contains("UpdateCliStatusAsync", source, StringComparison.Ordinal);
         Assert.Contains("Diagnostics copied.", source, StringComparison.Ordinal);
 
         var appSource = File.ReadAllText(TestAsset("WindowsApp.cs"));

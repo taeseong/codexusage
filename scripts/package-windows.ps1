@@ -1,10 +1,11 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("win-x64")]
+    [ValidateSet("win-x64", "win-arm64")]
     [string]$RuntimeIdentifier = "win-x64",
     [string]$Version,
     [string]$ReleaseTag,
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$Portable
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,7 @@ $projectPath = Join-Path $projectRoot "src\CodexUsage.Windows\CodexUsage.Windows
 $publishDirectory = Join-Path $projectRoot "artifacts\publish\$RuntimeIdentifier"
 $buildDirectory = Join-Path $projectRoot "artifacts\build-graph"
 $installerDirectory = Join-Path $projectRoot "artifacts\installer"
+$portableDirectory = Join-Path $projectRoot "artifacts\portable"
 $installerScript = Join-Path $projectRoot "installer\CodexUsage.iss"
 $gitSafeDirectory = $projectRoot.Replace("\", "/")
 
@@ -122,8 +124,22 @@ if ($LASTEXITCODE -ne 0) {
 Get-ChildItem -LiteralPath $publishDirectory -Recurse -File -Filter "*.pdb" |
     Remove-Item -Force
 
+if ($Portable) {
+    New-Item -ItemType Directory -Path $portableDirectory -Force | Out-Null
+    $portablePath = Join-Path $portableDirectory "CodexUsage-$Version-$RuntimeIdentifier-portable.zip"
+    $publishFiles = Get-ChildItem -LiteralPath $publishDirectory -Force | Select-Object -ExpandProperty FullName
+    Compress-Archive -LiteralPath $publishFiles -DestinationPath $portablePath -CompressionLevel Optimal -Force
+    $portableChecksumPath = "$portablePath.sha256"
+    $portableHash = (Get-FileHash -LiteralPath $portablePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -LiteralPath $portableChecksumPath -Value "$portableHash  $(Split-Path -Leaf $portablePath)" -Encoding ascii
+}
+
 if ($SkipInstaller) {
     Write-Output $publishDirectory
+    if ($Portable) {
+        Write-Output $portablePath
+        Write-Output $portableChecksumPath
+    }
     exit 0
 }
 
@@ -152,15 +168,21 @@ $isccPath = if ($iscc -is [System.Management.Automation.CommandInfo]) {
 else {
     $iscc.FullName
 }
-& $isccPath "/DPublishDir=$publishDirectory" "/DOutputDir=$installerDirectory" "/DAppVersion=$Version" $installerScript
+$installerArchitecture = if ($RuntimeIdentifier -eq "win-arm64") { "arm64" } else { "x64compatible" }
+& $isccPath "/DPublishDir=$publishDirectory" "/DOutputDir=$installerDirectory" "/DAppVersion=$Version" `
+    "/DInstallerArchitecture=$installerArchitecture" "/DInstallerRuntimeIdentifier=$RuntimeIdentifier" $installerScript
 if ($LASTEXITCODE -ne 0) {
     throw "Installer compilation failed with exit code $LASTEXITCODE."
 }
 
-$installerPath = Join-Path $installerDirectory "CodexUsage-Setup-$Version-win-x64.exe"
+$installerPath = Join-Path $installerDirectory "CodexUsage-Setup-$Version-$RuntimeIdentifier.exe"
 $checksumPath = "$installerPath.sha256"
 $installerHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -LiteralPath $checksumPath -Value "$installerHash  $(Split-Path -Leaf $installerPath)" -Encoding ascii
 
 Write-Output $installerPath
 Write-Output $checksumPath
+if ($Portable) {
+    Write-Output $portablePath
+    Write-Output $portableChecksumPath
+}

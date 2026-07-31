@@ -70,6 +70,7 @@ public sealed class AppServerClientTests
 
         Assert.Equal("pro", account.Account?.PlanType);
         Assert.Contains(session.Writes, line => line.Contains("account/read", StringComparison.Ordinal));
+        Assert.Contains(session.Writes, line => line.Contains("\"refreshToken\":true", StringComparison.Ordinal));
     }
 
     private static AppServerClient CreateClient(FakeSession session, TimeSpan? timeout = null) =>

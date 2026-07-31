@@ -65,4 +65,17 @@ public sealed class CodexCliProbeTests
         Assert.DoesNotContain("example.com", result.Version, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", result.Version, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(@"C:\Users\Example\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe", "PowerShell standalone")]
+    [InlineData(@"C:\Users\Example\AppData\Roaming\npm\codex.cmd", "npm")]
+    [InlineData(@"C:\Users\Example\AppData\Local\Microsoft\WinGet\Links\codex.exe", "WinGet")]
+    [InlineData(@"C:\Users\Example\AppData\Local\Microsoft\WindowsApps\codex.exe", "WindowsApps")]
+    [InlineData(@"D:\Tools\codex.exe", "PATH or custom location")]
+    public void ProbeResult_DescribesTheSelectedCliSource(string executablePath, string expectedSource)
+    {
+        var result = new CodexCliProbeResult(executablePath, "codex-cli 0.146.0");
+
+        Assert.Equal(expectedSource, result.InstallationSource);
+    }
 }

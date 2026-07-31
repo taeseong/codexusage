@@ -10,7 +10,8 @@ namespace CodexUsage.Windows.Views;
 
 public partial class CodexCliInstallWindow : Window
 {
-    internal const string InstallCommand = "npm install --global @openai/codex";
+    internal const string PowerShellInstallCommand = "irm https://chatgpt.com/codex/install.ps1 | iex";
+    internal const string NpmInstallCommand = "npm install --global @openai/codex";
 
     public CodexCliInstallWindow()
     {
@@ -50,7 +51,13 @@ public partial class CodexCliInstallWindow : Window
         ActionStatusText.Text = message;
     }
 
-    private async void OnCopyInstallCommand(object? sender, RoutedEventArgs e)
+    private async void OnCopyPowerShellInstallCommand(object? sender, RoutedEventArgs e) =>
+        await CopyInstallCommandAsync(PowerShellInstallCommand, "PowerShell 설치 명령을 복사했습니다.");
+
+    private async void OnCopyNpmInstallCommand(object? sender, RoutedEventArgs e) =>
+        await CopyInstallCommandAsync(NpmInstallCommand, "npm 설치 명령을 복사했습니다.");
+
+    private async Task CopyInstallCommandAsync(string command, string successMessage)
     {
         var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
         if (clipboard is null)
@@ -61,8 +68,8 @@ public partial class CodexCliInstallWindow : Window
 
         try
         {
-            await clipboard.SetTextAsync(InstallCommand);
-            ActionStatusText.Text = "설치 명령을 복사했습니다.";
+            await clipboard.SetTextAsync(command);
+            ActionStatusText.Text = successMessage;
         }
         catch (Exception exception)
         {

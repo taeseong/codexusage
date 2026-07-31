@@ -113,7 +113,7 @@
     </TabItem>
     <TabItem Header="History"
              AutomationProperties.Name="Weekly usage history">
-      <ScrollViewer>
+      <ScrollViewer Padding="0,0,12,0">
         <StackPanel Classes="usage-details-content" Spacing="{StaticResource UsageSpace3}"
                     DataContext="{Binding History}">
           <TextBlock Classes="usage-title" Text="Weekly history" />
@@ -217,6 +217,12 @@
                   AutomationProperties.Name="Clear locally stored usage history"
                   Command="{Binding RequestClearHistoryCommand}"
                   Content="Clear history" />
+          <Button Classes="usage-action"
+                  HorizontalAlignment="Left"
+                  AutomationProperties.Name="Export locally observed usage history as CSV"
+                  Click="OnExportHistory"
+                  IsVisible="{Binding HasRecordedWindows}"
+                  Content="Export CSV" />
         </StackPanel>
       </ScrollViewer>
     </TabItem>

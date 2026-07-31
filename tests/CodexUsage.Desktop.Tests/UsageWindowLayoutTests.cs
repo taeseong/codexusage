@@ -128,6 +128,9 @@ public sealed class UsageWindowLayoutTests
             window.Descendants(avalonia + "ComboBox"),
             element => (string?)element.Attribute("AutomationProperties.Name") == "History observation filter" &&
                        (string?)element.Attribute("SelectedIndex") == "{Binding ObservationFilterIndex}");
+        Assert.Contains(
+            window.Descendants(avalonia + "ScrollViewer"),
+            element => (string?)element.Attribute("Padding") == "0,0,12,0");
     }
 
     [Fact]

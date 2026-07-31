@@ -149,4 +149,6 @@ public sealed record CodexCliProbeResult(
     string? Version)
 {
     public bool IsFound => !string.IsNullOrWhiteSpace(ExecutablePath);
+
+    public string InstallationSource => CodexCliInstallationSource.Describe(ExecutablePath);
 }

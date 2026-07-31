@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
+using CodexUsage.Desktop.UsageHistory;
 using CodexUsage.Desktop.ViewModels;
 
 namespace CodexUsage.Desktop.Views;
@@ -59,6 +61,37 @@ public partial class UsageWindow : Window
         }
 
         base.OnClosing(e);
+    }
+
+    private async void OnExportHistory(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not UsageViewModel { History: { HasRecordedWindows: true } history })
+        {
+            return;
+        }
+
+        try
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export CodexUsage history",
+                SuggestedFileName = $"codexusage-history-{DateTime.Now:yyyyMMdd}.csv",
+                FileTypeChoices = [new FilePickerFileType("CSV file") { Patterns = ["*.csv"] }],
+            });
+            if (file is null)
+            {
+                return;
+            }
+
+            await using var destination = await file.OpenWriteAsync();
+            await new UsageHistoryCsvExporter().ExportAsync(history.ExportableWindows, destination);
+            history.SetExportStatus("History exported locally as CSV.");
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceWarning("Usage history export failed: {0}", exception.GetType().Name);
+            history.SetExportStatus("History export could not be completed.");
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
