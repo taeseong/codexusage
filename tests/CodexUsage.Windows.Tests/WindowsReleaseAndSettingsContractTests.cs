@@ -157,7 +157,7 @@ public sealed class WindowsReleaseAndSettingsContractTests
             _ => throw new ArgumentOutOfRangeException(nameof(form)),
         };
 
-        Assert.Equal("v0.1.4", expectedTag);
+        Assert.Equal("v0.1.5", expectedTag);
         Assert.Equal(expected, string.Equals(candidate, expectedTag, StringComparison.Ordinal));
     }
 
