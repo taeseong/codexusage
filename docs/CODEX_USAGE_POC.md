@@ -229,6 +229,23 @@ security policy, so no browser, cookie, storage, or alternative-route
 workaround was used. Windows 11 and 125%/150%/200% or mixed-DPI runtime
 verification likewise remain pending on suitable hardware.
 
+## Windows 0.1.5 stability follow-up (2026-07-31)
+
+`scripts/qa-windows-stability.ps1` ran the published x64 app in an isolated,
+non-interactive Windows test session for five minutes without an unexpected
+exit. The session was deliberately signed out, so this is lifecycle and
+resource evidence only, not live-account evidence. Its reproducible report is
+`artifacts/qa/windows-stability-0.1.5/stability-report.json`: CPU was 0.125%,
+working set changed from 139.8 MB to 132.0 MB, private memory changed from
+94.4 MB to 85.3 MB, the process was alive at measurement end, and the
+test-owned process cleanup succeeded. The diagnostics log recorded `AppStarted`
+and the expected `NotAuthenticated` lookup result only.
+
+An earlier elevated run exited through the app's normal `AppStopped` path. That
+host has no interactive desktop and is not valid evidence of an application
+crash or ordinary-user session stability. A two-hour test and an authenticated
+interactive-session soak are still pending.
+
 A fresh official Usage comparison was attempted without reading cookies,
 tokens, local storage, or network responses. The available in-app browser
 session was signed out and redirected the Usage URL to the ChatGPT login page,

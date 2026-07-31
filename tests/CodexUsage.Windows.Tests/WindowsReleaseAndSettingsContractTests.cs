@@ -73,6 +73,26 @@ public sealed class WindowsReleaseAndSettingsContractTests
     }
 
     [Fact]
+    public void StabilityQaScript_UsesIsolatedStateClearsCaptureModeAndWritesEvidence()
+    {
+        var script = File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "TestAssets", "qa-windows-stability.ps1"));
+
+        Assert.Contains("artifacts\\qa", script, StringComparison.Ordinal);
+        Assert.Contains("Stability probe output must remain under artifacts\\qa.", script, StringComparison.Ordinal);
+        Assert.Contains("CODEX_USAGE_CAPTURE_PATH", script, StringComparison.Ordinal);
+        Assert.Contains("CODEX_USAGE_SETTINGS_PATH", script, StringComparison.Ordinal);
+        Assert.Contains("CODEX_USAGE_DIAGNOSTICS_LOG_PATH", script, StringComparison.Ordinal);
+        Assert.Contains("DurationSeconds", script, StringComparison.Ordinal);
+        Assert.Contains("CpuPercent", script, StringComparison.Ordinal);
+        Assert.Contains("EndWorkingSetMB", script, StringComparison.Ordinal);
+        Assert.Contains("EndPrivateMemoryMB", script, StringComparison.Ordinal);
+        Assert.Contains("ProcessAliveAtMeasurementEnd", script, StringComparison.Ordinal);
+        Assert.Contains("CleanupSucceeded", script, StringComparison.Ordinal);
+        Assert.Contains("stability-report.json", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallerUpgradeQaScript_RequiresACleanTestAccountAndPreservesLocalState()
     {
         var script = File.ReadAllText(

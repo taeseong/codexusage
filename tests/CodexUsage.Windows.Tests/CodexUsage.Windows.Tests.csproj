@@ -58,6 +58,9 @@
     <Content Include="../../scripts/qa-windows-runtime.ps1"
              Link="TestAssets/qa-windows-runtime.ps1"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/qa-windows-stability.ps1"
+             Link="TestAssets/qa-windows-stability.ps1"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/qa-windows-installer-upgrade.ps1"
              Link="TestAssets/qa-windows-installer-upgrade.ps1"
              CopyToOutputDirectory="PreserveNewest" />
